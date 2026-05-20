@@ -1,0 +1,504 @@
+import React, { useState, useEffect } from 'react';
+import { useApp } from '../context/AppContext';
+import { i18n } from '../lib/i18n';
+import { User, UserRole } from '../types';
+import { Shield, Plus, Trash2, Edit2, Lock, Check } from 'lucide-react';
+
+const AVAILABLE_ROLES: { id: UserRole; name: string }[] = [
+  { id: 'Admin', name: 'Admin' },
+  { id: 'Pharmacist', name: 'Pharmacist' },
+  { id: 'Pharmacist Assistant', name: 'Pharmacist Assistant' },
+  { id: 'Nurse', name: 'Nurse' },
+  { id: 'Doctor', name: 'Doctor' },
+  { id: 'Pharmacy Stock Clerk', name: 'Pharmacy Stock Clerk (Warehouse)' }
+];
+
+export default function UserAdminManager() {
+  const {
+    currentUser,
+    users,
+    language,
+    createUser,
+    updateUser,
+    deleteUser,
+    fetchUsers
+  } = useApp();
+
+  const t = i18n[language];
+
+  // Protect access control block
+  const isAdmin = currentUser?.role === 'Admin' || currentUser?.roles?.includes('Admin');
+
+  const [username, setUsername] = useState('');
+  const [name, setName] = useState('');
+  const [selectedRoles, setSelectedRoles] = useState<UserRole[]>(['Nurse']);
+  const [password, setPassword] = useState('');
+
+  const [errorMsg, setErrorMsg] = useState('');
+  const [addPanel, setAddPanel] = useState(false);
+
+  // Edit Staff Modal dialog state
+  const [editingStaff, setEditingStaff] = useState<User | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editPassword, setEditPassword] = useState('');
+  const [editRoles, setEditRoles] = useState<UserRole[]>([]);
+  const [editErrorMsg, setEditErrorMsg] = useState('');
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchUsers();
+    }
+  }, [currentUser]);
+
+  if (!isAdmin) {
+    return (
+      <div className="bg-red-50/50 border border-red-200 rounded-xl p-8 flex flex-col items-center justify-center text-center max-w-xl mx-auto space-y-4 shadow-sm animate-fade-in">
+        <div className="w-14 h-14 bg-red-100/50 rounded-full flex items-center justify-center text-red-600">
+          <Shield className="w-7 h-7" />
+        </div>
+        <h2 className="text-sm font-bold uppercase tracking-wider text-red-800">{t.adminOnly}</h2>
+        <p className="text-xs text-red-700 leading-normal">
+          Your active login role is <span className="font-bold underline">{currentUser?.role || 'Guest'}</span>.
+          Accessing this portal requires system root credentials.
+        </p>
+      </div>
+    );
+  }
+
+  // Toggling roles in NEW USER form
+  const handleToggleRole = (roleItem: UserRole) => {
+    if (selectedRoles.includes(roleItem)) {
+      if (selectedRoles.length > 1) {
+        setSelectedRoles(selectedRoles.filter(r => r !== roleItem));
+      }
+    } else {
+      setSelectedRoles([...selectedRoles, roleItem]);
+    }
+  };
+
+  // Toggling roles in EDIT USER form
+  const handleToggleEditRole = (roleItem: UserRole) => {
+    if (editRoles.includes(roleItem)) {
+      if (editRoles.length > 1) {
+        setEditRoles(editRoles.filter(r => r !== roleItem));
+      }
+    } else {
+      setEditRoles([...editRoles, roleItem]);
+    }
+  };
+
+  const handleRegisterStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+
+    if (!username.trim() || !name.trim() || !password.trim()) {
+      setErrorMsg('All credential parameters are mandatory!');
+      return;
+    }
+
+    if (selectedRoles.length === 0) {
+      setErrorMsg('At least one assigned role is required!');
+      return;
+    }
+
+    const payload = {
+      username: username.trim(),
+      name: name.trim(),
+      role: selectedRoles[0], // primary fallback role for legacy system checks
+      roles: selectedRoles,
+      password: password.trim()
+    };
+
+    const res = await createUser(payload);
+    if (res.success) {
+      setUsername('');
+      setName('');
+      setPassword('');
+      setSelectedRoles(['Nurse']);
+      setAddPanel(false);
+    } else {
+      setErrorMsg(res.error || 'Server rejected staff creation');
+    }
+  };
+
+  const handleOpenEdit = (staff: User) => {
+    setEditingStaff(staff);
+    setEditName(staff.name);
+    setEditPassword('');
+    // Ensure we fall back to their .role if .roles is missing or empty
+    const currentRoles = staff.roles && staff.roles.length > 0 ? staff.roles : [staff.role];
+    setEditRoles(currentRoles);
+    setEditErrorMsg('');
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEditErrorMsg('');
+    if (!editingStaff) return;
+
+    if (!editName.trim()) {
+      setEditErrorMsg('Staff Full Name is required!');
+      return;
+    }
+
+    if (editRoles.length === 0) {
+      setEditErrorMsg('At least one assigned role is required!');
+      return;
+    }
+
+    const payload: any = {
+      name: editName.trim(),
+      role: editRoles[0], // primary fallback role
+      roles: editRoles
+    };
+
+    if (editPassword.trim()) {
+      payload.password = editPassword.trim();
+    }
+
+    const res = await updateUser(editingStaff.id, payload);
+    if (res.success) {
+      setEditingStaff(null);
+    } else {
+      setEditErrorMsg(res.error || 'Server rejected staff profile modifications');
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Introduction layout */}
+      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-sm font-bold text-slate-800 tracking-tight uppercase flex items-center gap-2">
+            <Lock className="w-4 h-4 text-red-500" />
+            {t.userCatalog}
+          </h2>
+          <p className="text-[11px] text-slate-400 mt-0.5">
+            Assign credentials and clinical clearance tokens across hospital staffs
+          </p>
+        </div>
+
+        {!addPanel && (
+          <button
+            id="open-register-staff-btn"
+            onClick={() => setAddPanel(true)}
+            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold uppercase transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            {t.addNewUser}
+          </button>
+        )}
+      </div>
+
+      {/* Grid addition Form */}
+      {addPanel && (
+        <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 shadow-sm animate-fade-in">
+          <div className="flex border-b border-slate-200 pb-3 mb-4 justify-between items-center">
+            <h3 className="font-bold text-xs uppercase tracking-wider text-slate-700">{t.addNewUser}</h3>
+            <button
+              id="cancel-staff-btn"
+              type="button"
+              onClick={() => {
+                setAddPanel(false);
+                setErrorMsg('');
+              }}
+              className="text-xs text-slate-450 font-bold px-2 py-1 bg-white border border-slate-200 rounded cursor-pointer hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+          </div>
+
+          <form onSubmit={handleRegisterStaff} className="space-y-4 text-xs font-sans">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-slate-500 mb-1 font-semibold">{t.userId} / Username *</label>
+                <input
+                  id="staff-username-input"
+                  type="text"
+                  required
+                  autoComplete="off"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Enter Username / Staff ID"
+                  className="w-full bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs focus:outline-hidden focus:border-blue-500 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-500 mb-1 font-semibold">{t.staffName} *</label>
+                <input
+                  id="staff-name-input"
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g., Mrs. Clara Nurse"
+                  className="w-full bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs focus:outline-hidden focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-500 mb-1 font-semibold">{t.password} *</label>
+                <input
+                  id="staff-password-input"
+                  type="password"
+                  required
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter password"
+                  className="w-full bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs focus:outline-hidden focus:border-blue-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-slate-500 mb-1.5 font-bold uppercase tracking-wider text-[10px]">
+                Assign Roles (Multiple Selection Allowed) *
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {AVAILABLE_ROLES.map((roleObj) => {
+                  const isChecked = selectedRoles.includes(roleObj.id);
+                  return (
+                    <button
+                      key={roleObj.id}
+                      type="button"
+                      onClick={() => handleToggleRole(roleObj.id)}
+                      className={`px-3 py-2 rounded-lg border text-[11px] font-bold uppercase transition-all flex items-center gap-2 cursor-pointer ${
+                        isChecked
+                          ? 'bg-blue-650 bg-blue-600 text-white border-blue-600 shadow-sm'
+                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center text-[9px] ${
+                        isChecked ? 'bg-white border-white text-blue-650 text-blue-600' : 'bg-slate-50 border-slate-350'
+                      }`}>
+                        {isChecked && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                      </span>
+                      {roleObj.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {errorMsg && (
+              <p className="text-red-650 text-red-600 font-bold bg-white text-[10px] uppercase p-2.5 rounded border border-red-100">
+                ⚠️ {errorMsg}
+              </p>
+            )}
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setAddPanel(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold uppercase transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                id="submit-staff-btn"
+                type="submit"
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold uppercase transition-all shadow-xs cursor-pointer"
+              >
+                Register Credentials
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Registered Staff Card views */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden text-xs">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 text-slate-500 uppercase tracking-wider text-[10px] font-bold border-b border-slate-200">
+                <th className="p-4">Staff Member</th>
+                <th className="p-4 font-mono">User ID / Username</th>
+                <th className="p-4">Assigned Roles</th>
+                <th className="p-4">System Identity Code</th>
+                <th className="p-4 text-center">Security Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-slate-700">
+              {users.map((staff) => {
+                const currentRolesList = staff.roles && staff.roles.length > 0 ? staff.roles : [staff.role];
+                return (
+                  <tr key={staff.id} className="hover:bg-slate-50/40 transition-colors">
+                    <td className="p-4 font-bold text-slate-800 text-xs sm:text-sm">
+                      {staff.name}
+                      {staff.id === '585982' && (
+                        <span className="ml-2 text-[9px] bg-red-50 text-red-600 border border-red-100 px-2 py-0.5 rounded font-mono font-bold uppercase tracking-wider">
+                          Root Admin
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-4 font-mono font-bold text-slate-600 select-all">{staff.username}</td>
+                    <td className="p-4">
+                      <div className="flex flex-wrap gap-1">
+                        {currentRolesList.map((r) => (
+                          <span key={r} className={`px-2 py-0.5 rounded text-[9px] font-extrabold uppercase border ${
+                            r === 'Admin'
+                              ? 'bg-red-550 bg-red-50 text-red-600 border-red-100'
+                              : r === 'Pharmacist'
+                              ? 'bg-blue-50 text-blue-600 border-blue-100'
+                              : r === 'Nurse'
+                              ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                              : r === 'Doctor'
+                              ? 'bg-indigo-50 text-indigo-600 border-indigo-100'
+                              : r === 'Pharmacist Assistant'
+                              ? 'bg-cyan-50 text-cyan-600 border-cyan-100'
+                              : 'bg-amber-50 text-amber-600 border-amber-100'
+                          }`}>
+                            {r}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="p-4 font-mono text-[10px] text-slate-400 select-all">{staff.id}</td>
+                    <td className="p-4 whitespace-nowrap text-center">
+                      {staff.id === '585982' ? (
+                        <span className="text-[10px] text-slate-300 font-mono italic">Protected</span>
+                      ) : (
+                        <div className="flex gap-2 justify-center items-center">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(staff)}
+                            className="px-2.5 py-1 text-[10px] font-bold text-blue-600 border border-blue-100 hover:bg-blue-50 rounded-md transition-all cursor-pointer uppercase flex items-center gap-1 hover:border-blue-300"
+                          >
+                            <Edit2 className="w-2.5 h-2.5" />
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm(`Are you sure you want to permanently delete staff member ${staff.name}?`)) {
+                                deleteUser(staff.id);
+                              }
+                            }}
+                            className="px-2.5 py-1 text-[10px] font-bold text-red-600 border border-red-100 hover:bg-red-50 rounded-md transition-all cursor-pointer uppercase flex items-center gap-1 hover:border-red-300"
+                          >
+                            <Trash2 className="w-2.5 h-2.5" />
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Editing Staff Modal Overlay dialog */}
+      {editingStaff && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 transition-all animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-2xl max-w-lg w-full flex flex-col overflow-hidden max-h-[85vh]">
+            <div className="p-5 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+              <div>
+                <h3 className="font-black text-xs uppercase tracking-wider text-slate-700">
+                  Edit Staff Credentials & Access Control
+                </h3>
+                <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                  User Account Profile ID: {editingStaff.username}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingStaff(null)}
+                className="text-slate-450 hover:text-slate-600 text-sm font-mono p-1 hover:bg-slate-100 rounded-lg cursor-pointer font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="p-6 overflow-y-auto space-y-4 text-xs">
+              <div>
+                <label className="block text-slate-500 mb-1 font-semibold">Staff Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs focus:outline-hidden focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-slate-500 font-semibold">Change Password (Optional)</label>
+                  <span className="text-[9px] text-slate-400 font-mono">Leave blank to keep current</span>
+                </div>
+                <input
+                  type="password"
+                  value={editPassword}
+                  onChange={(e) => setEditPassword(e.target.value)}
+                  placeholder="Enter new password"
+                  autoComplete="new-password"
+                  className="w-full bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs focus:outline-hidden focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-500 mb-1.5 font-bold uppercase tracking-wider text-[10px]">
+                  Assigned Roles (Multiple Selection Allowed) *
+                </label>
+                <div className="flex flex-col gap-1.5">
+                  {AVAILABLE_ROLES.map((roleObj) => {
+                    const isChecked = editRoles.includes(roleObj.id);
+                    return (
+                      <button
+                        key={roleObj.id}
+                        type="button"
+                        onClick={() => handleToggleEditRole(roleObj.id)}
+                        className={`w-full px-3 py-2.5 rounded-lg border text-left text-xs font-bold uppercase transition-all flex items-center justify-between cursor-pointer ${
+                          isChecked
+                            ? 'bg-blue-50 text-blue-700 border-blue-200'
+                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center text-[9px] ${
+                            isChecked ? 'bg-blue-600 border-blue-600 text-white font-bold' : 'bg-slate-50 border-slate-350'
+                          }`}>
+                            {isChecked && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                          </span>
+                          {roleObj.name}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {editErrorMsg && (
+                <p className="text-red-650 text-red-600 font-bold bg-white text-[10px] uppercase p-2.5 rounded border border-red-100">
+                  ⚠️ {editErrorMsg}
+                </p>
+              )}
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-150">
+                <button
+                  type="button"
+                  onClick={() => setEditingStaff(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold uppercase transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold uppercase transition-all shadow-xs cursor-pointer"
+                >
+                  Save Modifications
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

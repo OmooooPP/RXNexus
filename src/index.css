@@ -1,0 +1,75 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Sarabun", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Custom CSS Scrollbars */
+.custom-mini-scroll::-webkit-scrollbar {
+  width: 3px;
+  height: 3px;
+}
+.custom-mini-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-mini-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+
+/* Print CSS Configurations for flawless PDF and Slip Voucher generation */
+@media print {
+  /* Hide absolutely everything in the document body... */
+  body * {
+    visibility: hidden !important;
+  }
+  
+  /* ...EXCEPT our specifically designated printable container and its children! */
+  #printable-area, #printable-area * {
+    visibility: visible !important;
+  }
+  
+  /* Position the printable area elegantly at the top-left of the page canvas */
+  #printable-area {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  body {
+    background-color: white !important;
+    background-image: none !important;
+    color: black !important;
+    font-size: 11pt !important;
+  }
+
+  /* Force print background shadows and colors */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .bg-neutral-50, .bg-indigo-50\/20, .bg-emerald-50\/5 {
+    background-color: #f8fafc !important;
+  }
+
+  .page-break-inside-avoid {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Prevent uploaded scan leaks across paper cuts */
+  img {
+    max-width: 100% !important;
+    max-height: 220px !important;
+    object-fit: contain !important;
+    page-break-inside: avoid !important;
+  }
+}

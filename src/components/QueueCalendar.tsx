@@ -1,0 +1,337 @@
+import React, { useState } from 'react';
+import { useApp } from '../context/AppContext';
+import { i18n } from '../lib/i18n';
+import { Booking, formatDateToDMY } from '../types';
+import { ChevronLeft, ChevronRight, HelpCircle, Check, Loader, Calendar as CalIcon } from 'lucide-react';
+
+export default function QueueCalendar() {
+  const { bookings, language } = useApp();
+  const t = i18n[language];
+
+  // Selected date reference for month navigation
+  const [currentDate, setCurrentDate] = useState<Date>(new Date(2026, 4, 20)); // Focus on May 2026 based on timestamp
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+
+  // Month and Day names dictionaries
+  const EN_MONTHS = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+  const TH_MONTHS = [
+    'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+    'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+  ];
+  const MONTHS = language === 'TH' ? TH_MONTHS : EN_MONTHS;
+
+  const EN_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const TH_WEEKDAYS = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
+  const WEEKDAYS = language === 'TH' ? TH_WEEKDAYS : EN_WEEKDAYS;
+
+  // Calendar math calculations
+  const firstDayOfMonth = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  // Create grid cells
+  const cells: (Date | null)[] = [];
+  // padding empty cells
+  for (let i = 0; i < firstDayOfMonth; i++) {
+    cells.push(null);
+  }
+  // fill active date cells
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push(new Date(year, month, d));
+  }
+
+  // Prev/Next Navigators
+  const navigatePrev = () => {
+    setCurrentDate(new Date(year, month - 1, 1));
+  };
+
+  const navigateNext = () => {
+    setCurrentDate(new Date(year, month + 1, 1));
+  };
+
+  // Convert Date object to string format: YYYY-MM-DD
+  const formatDateStr = (date: Date): string => {
+    const yStr = date.getFullYear();
+    const mStr = String(date.getMonth() + 1).padStart(2, '0');
+    const dStr = String(date.getDate()).padStart(2, '0');
+    return `${yStr}-${mStr}-${dStr}`;
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Calendar Header Control Pane */}
+      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-sm font-bold text-slate-800 tracking-tight uppercase flex items-center gap-2">
+            <CalIcon className="w-5 h-5 text-blue-600" />
+            {t.calTitle}
+          </h2>
+          <p className="text-[11px] text-slate-400 mt-0.5">{t.calSubtitle}</p>
+        </div>
+
+        {/* Month Picker controls */}
+        <div className="flex items-center gap-3 bg-slate-50 px-4 py-2 border border-slate-200 rounded-lg max-w-sm">
+          <button
+            onClick={navigatePrev}
+            className="p-1 hover:bg-slate-200 rounded-lg text-slate-600 transition-colors cursor-pointer"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <span className="font-bold text-xs min-w-32 text-center text-slate-700 font-sans uppercase">
+            {MONTHS[month]} {year}
+          </span>
+          <button
+            onClick={navigateNext}
+            className="p-1 hover:bg-slate-200 rounded-lg text-slate-600 transition-colors cursor-pointer"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Legend Information bar */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] uppercase font-bold bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+        <span className="text-slate-400">Class Keys:</span>
+        <div className="flex items-center gap-1.5 font-sans">
+          <span className="w-2 h-2 bg-blue-600 rounded"></span>
+          <span className="text-blue-700">{t.calGenLegend}</span>
+        </div>
+        <div className="flex items-center gap-1.5 font-sans">
+          <span className="w-2 h-2 bg-red-600 rounded"></span>
+          <span className="text-red-700">{t.calOncoLegend}</span>
+        </div>
+        <div className="flex items-center gap-1.5 ml-auto text-slate-400 font-semiboldNormal normal-case">
+          <span>⚠️ = Pending Stock</span>
+          <span>•</span>
+          <span>✅ = Stock Delivered & Available</span>
+        </div>
+      </div>
+
+      {/* Month Calendar Grid board */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden p-4">
+        {/* Week Day labels */}
+        <div className="grid grid-cols-7 text-center font-bold text-[10px] text-slate-400 uppercase tracking-wider py-2 border-b border-slate-100">
+          {WEEKDAYS.map((day) => (
+            <div key={day} className="py-2">
+              {day}
+            </div>
+          ))}
+        </div>
+
+        {/* Date body grid cells */}
+        <div className="grid grid-cols-7 grid-rows-5 gap-1.5 mt-2 min-h-[480px]">
+          {cells.map((dateObj, idx) => {
+            if (!dateObj) {
+              return (
+                <div
+                  key={`empty-${idx}`}
+                  className="bg-slate-50/40 border border-transparent rounded-lg"
+                />
+              );
+            }
+
+            const dateStr = formatDateStr(dateObj);
+            // Query bookings allocated on this dateOfUse
+            const dayBookings = bookings.filter((b) => b.dateOfUse === dateStr);
+            const isToday = new Date().toDateString() === dateObj.toDateString();
+
+            return (
+              <div
+                key={dateStr}
+                className={`bg-white border rounded-lg p-2 flex flex-col hover:shadow-xs transition-all min-h-[90px] ${
+                  isToday
+                    ? 'border-blue-600 ring-2 ring-blue-50 bg-blue-50/10'
+                    : 'border-slate-100'
+                }`}
+              >
+                {/* Date digit */}
+                <div className="flex justify-between items-center mb-1">
+                  <span
+                    className={`text-xs font-bold leading-none w-5 h-5 flex items-center justify-center rounded-full ${
+                      isToday ? 'bg-blue-600 text-white' : 'text-slate-500'
+                    }`}
+                  >
+                    {dateObj.getDate()}
+                  </span>
+                  {dayBookings.length > 0 && (
+                    <span className="text-[9px] text-slate-400 font-semibold font-mono">
+                      ({dayBookings.length})
+                    </span>
+                  )}
+                </div>
+
+                {/* Day medication list elements inside card */}
+                <div className="flex-1 space-y-1 overflow-y-auto max-h-[70px] custom-mini-scroll text-[10px]">
+                  {dayBookings.map((b) => {
+                    const isAllClerkDelivered = b.clerkVerification.status === 'Ready-to-use';
+                    const isOnco = b.mode === 'Oncology';
+
+                    return (
+                      <div
+                        id={`calendar-event-${b.id}`}
+                        key={b.id}
+                        onClick={() => setSelectedBooking(b)}
+                        className={`p-1 rounded border text-[10px] font-semibold truncate cursor-pointer transition-all hover:scale-[1.02] flex items-center justify-between ${
+                          isOnco
+                            ? 'bg-red-50 text-red-700 hover:bg-red-100 border-red-200/50'
+                            : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200/50'
+                        }`}
+                        title={b.patientName}
+                      >
+                        <span className="truncate flex-1">
+                          {isAllClerkDelivered ? '✅ ' : '⚠️ '}
+                          {b.patientName}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Interactive Detail Modal dialog popup */}
+      {selectedBooking && (
+        <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 transition-all">
+          <div className="bg-white rounded-3xl border border-neutral-100 shadow-2xl max-w-xl w-full flex flex-col overflow-hidden max-h-[90vh]">
+            {/* Model Title */}
+            <div className="p-5 bg-neutral-50 border-b border-neutral-100 flex justify-between items-start">
+              <div>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${selectedBooking.mode === 'Oncology' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
+                  {selectedBooking.mode === 'Oncology' ? t.modeOncology : t.modeGeneral}
+                </span>
+                <h3 className="font-bold text-sm text-neutral-800 mt-1 mb-0.5">
+                  {t.clickCalDetail} — {selectedBooking.id}
+                </h3>
+                <p className="text-[10px] text-neutral-400">Recorded on {formatDateToDMY(selectedBooking.bookingDate)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedBooking(null)}
+                className="text-neutral-400 hover:text-neutral-600 text-sm font-bold font-mono p-1 hover:bg-neutral-100 rounded-lg cursor-pointer"
+              >
+                Close (ESC)
+              </button>
+            </div>
+
+            {/* Model Content body */}
+            <div className="p-6 overflow-y-auto space-y-5">
+              <div className="grid grid-cols-2 gap-4 text-xs">
+                <div>
+                  <p className="text-neutral-400 mb-0.5">{t.patientName}</p>
+                  <p className="font-bold text-neutral-800">{selectedBooking.patientName}</p>
+                </div>
+                <div>
+                  <p className="text-neutral-400 mb-0.5">{t.hn}</p>
+                  <p className="font-bold text-neutral-800 font-mono">{selectedBooking.hn}</p>
+                </div>
+                <div>
+                  <p className="text-neutral-400 mb-0.5">{t.dateOfUse}</p>
+                  <p className="font-bold text-neutral-800 font-mono text-[11px]">{formatDateToDMY(selectedBooking.dateOfUse)}</p>
+                </div>
+                <div>
+                  <p className="text-neutral-400 mb-0.5">{t.department}</p>
+                  <p className="font-bold text-neutral-840 text-neutral-700">{selectedBooking.department}</p>
+                </div>
+              </div>
+
+              {/* Medication Lists */}
+              <div className="border border-neutral-100 rounded-xl overflow-hidden">
+                <div className="p-2.5 bg-neutral-50 border-b border-neutral-100 font-bold text-xs text-neutral-600">
+                  {t.medTitle}
+                </div>
+                <table className="w-full text-xs text-left">
+                  <thead>
+                    <tr className="bg-neutral-50/50 text-neutral-400 font-semibold border-b border-offset border-neutral-100 text-[10px]">
+                      <th className="p-2">Item Description</th>
+                      <th className="p-2 text-center">Qty</th>
+                      <th className="p-2 text-right">Unit Price</th>
+                      <th className="p-2 text-right">Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100">
+                    {selectedBooking.medications.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-neutral-50/50 text-neutral-600">
+                        <td className="p-2 font-medium">{item.drugName}</td>
+                        <td className="p-2 text-center font-semibold">{item.quantity}</td>
+                        <td className="p-2 text-right font-mono">฿{item.unitPrice.toLocaleString()}</td>
+                        <td className="p-2 text-right font-bold text-neutral-800 font-mono">฿{item.totalPrice.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                    <tr className="bg-neutral-50 text-neutral-700 font-bold">
+                      <td colSpan={3} className="p-2 text-right uppercase tracking-wider">{t.totalAmount}:</td>
+                      <td className="p-2 text-right text-emerald-700 font-mono">฿{selectedBooking.totalAmount.toLocaleString()}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Verified signatures status */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-xl border border-neutral-100 bg-neutral-50">
+                <div className="space-y-1">
+                  <p className="text-[10px] uppercase font-bold text-neutral-400">Pharmacist Status</p>
+                  {selectedBooking.pharmacistVerification.status === 'Verified' ? (
+                    <div>
+                      <span className="text-emerald-700 font-bold text-xs flex items-center gap-1">
+                        <Check className="w-3.5 h-3.5 shrink-0" /> Verified
+                      </span>
+                      <p className="text-[9px] text-neutral-400 mt-1">
+                        By: {selectedBooking.pharmacistVerification.verifiedBy}
+                      </p>
+                    </div>
+                  ) : (
+                    <span className="text-amber-500 font-bold text-xs flex items-center gap-1">
+                      ⚠️ Pending Allocation Review
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-[10px] uppercase font-bold text-neutral-400">Warehouse Delivery Status</p>
+                  {selectedBooking.clerkVerification.status === 'Ready-to-use' ? (
+                    <div>
+                      <span className="text-emerald-700 font-bold text-xs flex items-center gap-1">
+                        <Check className="w-3.5 h-3.5 shrink-0" /> {t.calStatusReady}
+                      </span>
+                      <p className="text-[9px] text-neutral-400 mt-1">
+                        Received: {selectedBooking.clerkVerification.verifiedBy}
+                      </p>
+                    </div>
+                  ) : (
+                    <span className="text-amber-500 font-bold text-xs flex items-center gap-1">
+                      ⚠️ Awaiting Physical Drug Arrival
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Clinicians Signoffs validation */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-neutral-500">
+                <div>• {t.selectDoctor}: <span className="font-semibold text-neutral-700">{selectedBooking.staff.doctor}</span></div>
+                <div>• {t.selectNurse}: <span className="font-semibold text-neutral-700">{selectedBooking.staff.nurse}</span></div>
+              </div>
+            </div>
+
+            {/* Model Action footer */}
+            <div className="p-4 bg-neutral-50 border-t border-neutral-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedBooking(null)}
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
