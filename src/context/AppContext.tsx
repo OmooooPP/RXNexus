@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, Drug, Booking, SystemLog } from '../types';
+import { User, Drug, Booking, SystemLog, OwingMedication } from '../types';
 import { db, auth, OperationType, handleFirestoreError } from '../lib/firebase';
 import { collection, doc, setDoc, getDocs, onSnapshot, query, orderBy, deleteDoc, updateDoc } from 'firebase/firestore';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
@@ -10,6 +10,8 @@ interface Alert {
   timestamp: string;
   read: boolean;
   type: 'info' | 'success';
+  bookingId?: string;
+  hn?: string;
 }
 
 interface AppContextType {
@@ -19,6 +21,7 @@ interface AppContextType {
   users: User[];
   logs: SystemLog[];
   alerts: Alert[];
+  owingMeds: OwingMedication[];
   loading: boolean;
   language: 'TH' | 'EN';
   setLanguage: (lang: 'TH' | 'EN') => void;
@@ -29,7 +32,7 @@ interface AppContextType {
   fetchDrugs: () => Promise<void>;
   fetchUsers: () => Promise<void>;
   fetchLogs: () => Promise<void>;
-  createBooking: (b: Partial<Booking>) => Promise<{ success: boolean; error?: string }>;
+  createBooking: (b: Partial<Booking>) => Promise<{ success: boolean; error?: string; booking?: Booking }>;
   updateBooking: (id: string, b: Partial<Booking>) => Promise<{ success: boolean; error?: string }>;
   deleteBooking: (id: string) => Promise<{ success: boolean; error?: string }>;
   verifyPharmacist: (id: string) => Promise<boolean>;
@@ -37,10 +40,22 @@ interface AppContextType {
   createDrug: (d: Partial<Drug>) => Promise<{ success: boolean; error?: string }>;
   updateDrug: (id: string, d: Partial<Drug>) => Promise<{ success: boolean; error?: string }>;
   deleteDrug: (id: string) => Promise<{ success: boolean; error?: string }>;
+  requestDeleteDrug: (id: string, reason: string) => Promise<{ success: boolean; error?: string }>;
+  rejectDeleteDrug: (id: string) => Promise<{ success: boolean; error?: string }>;
+  requestEditDrug: (id: string, d: Partial<Drug>) => Promise<{ success: boolean; error?: string }>;
+  approveEditDrug: (id: string) => Promise<{ success: boolean; error?: string }>;
+  rejectEditDrug: (id: string) => Promise<{ success: boolean; error?: string }>;
   createUser: (usr: Partial<User> & { password?: string }) => Promise<{ success: boolean; error?: string }>;
+  registerUser: (usr: Partial<User> & { password?: string }) => Promise<{ success: boolean; error?: string }>;
   updateUser: (id: string, usr: Partial<User> & { password?: string }) => Promise<{ success: boolean; error?: string }>;
   deleteUser: (id: string) => Promise<{ success: boolean; error?: string }>;
+  reportOwingMed: (booking: Booking, drugIds?: string[]) => Promise<{ success: boolean; error?: string }>;
+  updatePreparedStatus: (owingId: string, drugId: string, received: boolean) => Promise<void>;
+  toggleOwingResolved: (owingId: string, resolved: boolean) => Promise<void>;
+  toggleMedicineOwing: (booking: Booking, targetMed: any, makeOwing: boolean) => Promise<void>;
   clearAlerts: () => void;
+  selectedPharmacyLocation: string;
+  setSelectedPharmacyLocation: (loc: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -61,17 +76,21 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [logs, setLogs] = useState<SystemLog[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [owingMeds, setOwingMeds] = useState<OwingMedication[]>([]);
   const [loading, setLoading] = useState(false);
   const [language, setLanguage] = useState<'TH' | 'EN'>('EN');
+  const [selectedPharmacyLocation, setSelectedPharmacyLocation] = useState<string>('All');
 
   // Trigger system alert sound or local alerts on content updates
-  const spawnAlert = (message: string, type: 'info' | 'success' = 'info') => {
+  const spawnAlert = (message: string, type: 'info' | 'success' = 'info', bookingId?: string, hn?: string) => {
     const newAlert: Alert = {
       id: 'alert-' + Date.now() + Math.random().toString(36).substr(2, 4),
       message,
       timestamp: new Date().toLocaleTimeString(),
       read: false,
-      type
+      type,
+      bookingId,
+      hn
     };
     setAlerts((prev) => [newAlert, ...prev].slice(0, 50)); // keep last 50
   };
@@ -90,6 +109,20 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       // 1. Real-time Bookings sync
       const qBookings = query(collection(db, 'bookings'));
       const unsubBookings = onSnapshot(qBookings, (snap) => {
+        snap.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const b = change.doc.data() as Booking;
+            const createdSecs = new Date(b.createdAt).getTime();
+            if (Date.now() - createdSecs < 10000 && b.staff?.creatorId !== currentUser?.id) {
+              spawnAlert(
+                `New booking ready: ${b.patientName} (HN: ${b.hn}) reserved for ${b.dateOfUse}`,
+                'info',
+                b.id,
+                b.hn
+              );
+            }
+          }
+        });
         const list: Booking[] = [];
         snap.forEach((docSnap) => {
           list.push(docSnap.data() as Booking);
@@ -116,6 +149,32 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       // 3. Real-time User profiles and system trace logs sync (restricted for admin dashboards)
       let unsubUsers = () => {};
       let unsubLogs = () => {};
+
+      const qOwing = query(collection(db, 'owing_meds'));
+      const unsubOwing = onSnapshot(qOwing, (snap) => {
+        snap.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const om = change.doc.data() as OwingMedication;
+            const createdSecs = new Date(om.createdAt).getTime();
+            if (Date.now() - createdSecs < 10000 && om.reportedBy !== currentUser?.name) {
+              spawnAlert(
+                `⚠️ OWING MEDICATIONS: ${om.patientName} (HN: ${om.hn}) has pending owing items!`,
+                'info',
+                om.bookingId,
+                om.hn
+              );
+            }
+          }
+        });
+        const list: OwingMedication[] = [];
+        snap.forEach((docSnap) => {
+          list.push(docSnap.data() as OwingMedication);
+        });
+        list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        setOwingMeds(list);
+      }, (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'owing_meds');
+      });
 
       if (currentUser.role === 'Admin') {
         const qUsers = query(collection(db, 'users'));
@@ -147,6 +206,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         unsubDrugs();
         unsubUsers();
         unsubLogs();
+        unsubOwing();
       };
     }
   }, [currentUser?.role, currentUser?.id]);
@@ -171,6 +231,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         return { success: false, error: 'Invalid User ID / Username or Password!' };
       }
 
+      if ((matchedUser as User).approved === false) {
+        return {
+          success: false,
+          error: language === 'TH'
+            ? 'บัญชีผู้ใช้นี้อยู่ระหว่างรอการอนุมัติการลงทะเบียนจาก Admin กรุณาติดต่อผู้ดูแลระบบ'
+            : 'Your registration request is pending Admin approval. Please contact your system administrator.'
+        };
+      }
+
       // Secure authenticaton linkage via standard Firebase Auth virtual emails
       const virtualEmail = `${username.trim().toLowerCase()}@rxnexus.com`;
       try {
@@ -178,7 +247,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       } catch (authError: any) {
         // Authenticate new users on their very first sign in dynamically
         if (authError.code === 'auth/user-not-found' || authError.code === 'auth/invalid-credential') {
-          await createUserWithEmailAndPassword(auth, virtualEmail, password);
+          try {
+            await createUserWithEmailAndPassword(auth, virtualEmail, password);
+          } catch (createError: any) {
+            if (createError.code === 'auth/operation-not-allowed') {
+              console.warn('[Firebase Auth Warn] Email/Password provider is not enabled in the Firebase Console. Seamlesly falling back to Firestore-based verification to prevent blocking.');
+            } else {
+              throw createError;
+            }
+          }
+        } else if (authError.code === 'auth/operation-not-allowed') {
+          console.warn('[Firebase Auth Warn] Email/Password provider is not enabled in the Firebase Console. Seamlesly falling back to Firestore-based verification to prevent blocking.');
         } else {
           throw authError;
         }
@@ -199,7 +278,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         action: 'User Login',
         details: 'User logged in securely via clinical Firebase Authentication.'
       };
-      await setDoc(doc(db, 'logs', logId), newLog);
+      // Try to write log; if Firebase rules allow, write to history
+      try {
+        await setDoc(doc(db, 'logs', logId), newLog);
+      } catch (logErr) {
+        console.warn('Logging skipped. Logs collection is secured.', logErr);
+      }
 
       return { success: true };
     } catch (e: any) {
@@ -281,7 +365,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       await setDoc(doc(db, 'logs', logId), newLog);
 
       spawnAlert(`Successfully booked medication order: ${bookingId} for ${newBooking.patientName}!`, 'success');
-      return { success: true };
+      return { success: true, booking: newBooking };
     } catch (e: any) {
       handleFirestoreError(e, OperationType.CREATE, 'bookings');
       return { success: false, error: e.message || 'Error saving booking reservation' };
@@ -299,9 +383,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       if (b.patientName) updateData.patientName = b.patientName;
       if (b.dateOfUse) updateData.dateOfUse = b.dateOfUse;
       if (b.department) updateData.department = b.department;
+      if (b.pharmacyLocation !== undefined) updateData.pharmacyLocation = b.pharmacyLocation;
+      if (b.mode) updateData.mode = b.mode;
       if (b.medications) updateData.medications = b.medications;
       if (b.totalAmount !== undefined) updateData.totalAmount = b.totalAmount;
       if (b.prescriptionImage !== undefined) updateData.prescriptionImage = b.prescriptionImage;
+      if (b.medicineReceived !== undefined) updateData.medicineReceived = b.medicineReceived;
+      if (b.pdfPrinted !== undefined) updateData.pdfPrinted = b.pdfPrinted;
+      if (b.stickerPrinted !== undefined) updateData.stickerPrinted = b.stickerPrinted;
       if (b.staff) {
         updateData.staff = {
           doctor: b.staff.doctor || '',
@@ -480,6 +569,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const docRef = doc(db, 'drugs', id);
       const updateData: any = {};
       if (d.name) updateData.name = d.name;
+      if (d.type) updateData.type = d.type;
       if (d.stockCode) updateData.stockCode = d.stockCode;
       if (d.prices) {
         updateData.prices = {
@@ -541,6 +631,198 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const requestDeleteDrug = async (id: string, reason: string) => {
+    setLoading(true);
+    try {
+      const docRef = doc(db, 'drugs', id);
+      await updateDoc(docRef, {
+        deleteRequested: true,
+        deleteReason: reason,
+        deleteRequestedBy: currentUser?.name || currentUser?.username || 'Staff',
+        deleteRequestedAt: new Date().toISOString()
+      });
+
+      const logId = 'log-' + Date.now();
+      const newLog: SystemLog = {
+        id: logId,
+        timestamp: new Date().toISOString(),
+        userId: currentUser?.id || 'system',
+        userName: currentUser?.name || 'Staff',
+        userRole: currentUser?.role || 'Pharmacist',
+        action: 'Request Drug Deletion',
+        details: `Requested deletion of drug id: ${id}. Reason: ${reason}`
+      };
+      await setDoc(doc(db, 'logs', logId), newLog);
+
+      spawnAlert(`Submitted drug deletion request. Awaiting Admin approval.`, 'info');
+      return { success: true };
+    } catch (e: any) {
+      handleFirestoreError(e, OperationType.UPDATE, `drugs/${id}`);
+      return { success: false, error: e.message || 'Error submitting deletion request' };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const rejectDeleteDrug = async (id: string) => {
+    setLoading(true);
+    try {
+      const docRef = doc(db, 'drugs', id);
+      await updateDoc(docRef, {
+        deleteRequested: false,
+        deleteReason: '',
+        deleteRequestedBy: '',
+        deleteRequestedAt: ''
+      });
+
+      const logId = 'log-' + Date.now();
+      const newLog: SystemLog = {
+        id: logId,
+        timestamp: new Date().toISOString(),
+        userId: currentUser?.id || 'system',
+        userName: currentUser?.name || 'Admin',
+        userRole: currentUser?.role || 'Admin',
+        action: 'Reject Drug Deletion',
+        details: `Rejected deletion request of drug id: ${id}.`
+      };
+      await setDoc(doc(db, 'logs', logId), newLog);
+
+      spawnAlert(`Rejected drug deletion request. Item is retained.`, 'success');
+      return { success: true };
+    } catch (e: any) {
+      handleFirestoreError(e, OperationType.UPDATE, `drugs/${id}`);
+      return { success: false, error: e.message || 'Error rejecting deletion request' };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const requestEditDrug = async (id: string, d: Partial<Drug>) => {
+    setLoading(true);
+    try {
+      const docRef = doc(db, 'drugs', id);
+      const proposed = {
+        name: d.name || '',
+        stockCode: d.stockCode || '',
+        type: d.type || 'General',
+        prices: {
+          employee: Number(d.prices?.employee) || 0,
+          opd: Number(d.prices?.opd) || 0,
+          ipd: Number(d.prices?.ipd) || 0,
+          it: Number(d.prices?.it) || 0
+        }
+      };
+
+      await updateDoc(docRef, {
+        editRequested: true,
+        editRequestedBy: currentUser?.name || currentUser?.username || 'Pharmacist',
+        editRequestedAt: new Date().toISOString(),
+        editRequest: proposed
+      });
+
+      const logId = 'log-' + Date.now();
+      const newLog: SystemLog = {
+        id: logId,
+        timestamp: new Date().toISOString(),
+        userId: currentUser?.id || 'system',
+        userName: currentUser?.name || 'Staff',
+        userRole: currentUser?.role || 'Pharmacist',
+        action: 'Request Drug Edit',
+        details: `Requested edit of drug id: ${id}. Proposed name: ${proposed.name}`
+      };
+      await setDoc(doc(db, 'logs', logId), newLog);
+
+      spawnAlert(`Submitted drug modification request. Awaiting Admin approval.`, 'info');
+      return { success: true };
+    } catch (e: any) {
+      handleFirestoreError(e, OperationType.UPDATE, `drugs/${id}`);
+      return { success: false, error: e.message || 'Error submitting modification request' };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const approveEditDrug = async (id: string) => {
+    setLoading(true);
+    try {
+      const docRef = doc(db, 'drugs', id);
+      const drugInList = drugs.find(d => d.id === id);
+      if (!drugInList || !drugInList.editRequest) {
+        throw new Error('No pending changes found for this drug item');
+      }
+
+      const prop = drugInList.editRequest;
+      await updateDoc(docRef, {
+        name: prop.name,
+        type: prop.type,
+        stockCode: prop.stockCode,
+        prices: {
+          employee: Number(prop.prices.employee) || 0,
+          opd: Number(prop.prices.opd) || 0,
+          ipd: Number(prop.prices.ipd) || 0,
+          it: Number(prop.prices.it) || 0
+        },
+        editRequested: false,
+        editRequestedBy: '',
+        editRequestedAt: '',
+        editRequest: null
+      });
+
+      const logId = 'log-' + Date.now();
+      const newLog: SystemLog = {
+        id: logId,
+        timestamp: new Date().toISOString(),
+        userId: currentUser?.id || 'system',
+        userName: currentUser?.name || 'Admin',
+        userRole: currentUser?.role || 'Admin',
+        action: 'Approve Drug Edit',
+        details: `Approved edit changes for drug id: ${id}. Applied name: ${prop.name}`
+      };
+      await setDoc(doc(db, 'logs', logId), newLog);
+
+      spawnAlert(`Approved drug modification. New parameters applied.`, 'success');
+      return { success: true };
+    } catch (e: any) {
+      handleFirestoreError(e, OperationType.UPDATE, `drugs/${id}`);
+      return { success: false, error: e.message || 'Error approving drug edit' };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const rejectEditDrug = async (id: string) => {
+    setLoading(true);
+    try {
+      const docRef = doc(db, 'drugs', id);
+      await updateDoc(docRef, {
+        editRequested: false,
+        editRequestedBy: '',
+        editRequestedAt: '',
+        editRequest: null
+      });
+
+      const logId = 'log-' + Date.now();
+      const newLog: SystemLog = {
+        id: logId,
+        timestamp: new Date().toISOString(),
+        userId: currentUser?.id || 'system',
+        userName: currentUser?.name || 'Admin',
+        userRole: currentUser?.role || 'Admin',
+        action: 'Reject Drug Edit',
+        details: `Rejected edit request of drug id: ${id}.`
+      };
+      await setDoc(doc(db, 'logs', logId), newLog);
+
+      spawnAlert(`Rejected drug edit request. Original parameters preserved.`, 'success');
+      return { success: true };
+    } catch (e: any) {
+      handleFirestoreError(e, OperationType.UPDATE, `drugs/${id}`);
+      return { success: false, error: e.message || 'Error rejecting edit request' };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Staff User profiles CRUD
   const createUser = async (usr: Partial<User> & { password?: string }) => {
     setLoading(true);
@@ -552,7 +834,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         name: usr.name || '',
         role: usr.role || 'Nurse',
         roles: usr.roles || [usr.role || 'Nurse'],
-        password: usr.password || 'password123'
+        password: usr.password || 'password123',
+        approved: true // Admin created is auto-approved
       };
 
       await setDoc(doc(db, 'users', newUserId), newUser);
@@ -587,6 +870,66 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const registerUser = async (usr: Partial<User> & { password?: string }) => {
+    setLoading(true);
+    try {
+      const usersRef = collection(db, 'users');
+      const snap = await getDocs(usersRef);
+      let exists = false;
+      snap.forEach((docSnap) => {
+        const u = docSnap.data() as User;
+        if (u.username.trim().toLowerCase() === usr.username?.trim().toLowerCase()) {
+          exists = true;
+        }
+      });
+
+      if (exists) {
+        return { success: false, error: 'Username / Staff ID already taken!' };
+      }
+
+      const newUserId = 'usr-' + Date.now();
+      const newUser: User = {
+        id: newUserId,
+        username: usr.username || '',
+        name: usr.name || '',
+        role: usr.role || 'Nurse',
+        roles: usr.roles || [usr.role || 'Nurse'],
+        password: usr.password || 'password123',
+        approved: false // Pending approval
+      };
+
+      await setDoc(doc(db, 'users', newUserId), newUser);
+
+      // Create linked Firebase Authentication credentials
+      const virtualEmail = `${newUser.username.trim().toLowerCase()}@rxnexus.com`;
+      try {
+        await createUserWithEmailAndPassword(auth, virtualEmail, newUser.password || 'password123');
+      } catch (authErr) {
+        console.warn('Firebase Auth user already created (warning):', authErr);
+      }
+
+      const logId = 'log-' + Date.now();
+      const newLog: SystemLog = {
+        id: logId,
+        timestamp: new Date().toISOString(),
+        userId: 'system',
+        userName: newUser.name,
+        userRole: newUser.role,
+        action: 'User Registration',
+        details: `Submitted online system registration. Pending security approval.`
+      };
+      await setDoc(doc(db, 'logs', logId), newLog);
+
+      spawnAlert(`Registration request submitted successfully! Pending Admin review.`, 'success');
+      return { success: true };
+    } catch (e: any) {
+      handleFirestoreError(e, OperationType.CREATE, 'users');
+      return { success: false, error: e.message || 'Error submitting registration request' };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const updateUser = async (id: string, usr: Partial<User> & { password?: string }) => {
     setLoading(true);
     try {
@@ -596,6 +939,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       if (usr.role) updateData.role = usr.role;
       if (usr.roles) updateData.roles = usr.roles;
       if (usr.password) updateData.password = usr.password;
+      if (usr.approved !== undefined) updateData.approved = usr.approved;
 
       await updateDoc(docRef, updateData);
 
@@ -651,6 +995,183 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const reportOwingMed = async (booking: Booking, drugIds?: string[]) => {
+    setLoading(true);
+    try {
+      const medsToReport = booking.medications
+        .filter(m => !drugIds || drugIds.includes(m.drugId))
+        .map(m => ({
+          drugId: m.drugId,
+          drugName: m.drugName,
+          stockCode: m.stockCode,
+          quantity: m.quantity,
+          received: false
+        }));
+
+      if (medsToReport.length === 0) {
+        return { success: false, error: 'No medications selected for owing report!' };
+      }
+
+      const owingId = 'owing-' + Date.now();
+      const newOwing: OwingMedication = {
+        id: owingId,
+        bookingId: booking.id,
+        patientName: booking.patientName,
+        hn: booking.hn,
+        medications: medsToReport,
+        reportedBy: currentUser?.name || 'Pharmacist',
+        createdAt: new Date().toISOString(),
+        resolved: false
+      };
+
+      await setDoc(doc(db, 'owing_meds', owingId), newOwing);
+
+      const logId = 'log-' + Date.now();
+      const newLog: SystemLog = {
+        id: logId,
+        timestamp: new Date().toISOString(),
+        userId: currentUser?.id || 'system',
+        userName: currentUser?.name || 'Pharmacist',
+        userRole: currentUser?.role || 'Pharmacist',
+        action: 'Report Owing Medication',
+        details: `Pharmacist reported owing medications for booking ${booking.id} (${booking.patientName}).`
+      };
+      await setDoc(doc(db, 'logs', logId), newLog);
+
+      spawnAlert(`Successfully logged owing med report for ${booking.patientName}!`, 'success', booking.id, booking.hn);
+      return { success: true };
+    } catch (e: any) {
+      handleFirestoreError(e, OperationType.CREATE, 'owing_meds');
+      return { success: false, error: e.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updatePreparedStatus = async (owingId: string, drugId: string, received: boolean) => {
+    try {
+      const found = owingMeds.find(om => om.id === owingId);
+      if (!found) return;
+
+      const updatedMeds = found.medications.map(m => {
+        if (m.drugId === drugId) {
+          return { ...m, received };
+        }
+        return m;
+      });
+
+      const allReceived = updatedMeds.every(m => m.received === true);
+
+      await updateDoc(doc(db, 'owing_meds', owingId), {
+        medications: updatedMeds,
+        resolved: allReceived
+      });
+
+      spawnAlert(`Updated item preparation status.`, 'success');
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `owing_meds/${owingId}`);
+    }
+  };
+
+  const toggleOwingResolved = async (owingId: string, resolved: boolean) => {
+    try {
+      const found = owingMeds.find(om => om.id === owingId);
+      if (!found) return;
+
+      const updatedMeds = found.medications.map(m => ({
+        ...m,
+        received: resolved
+      }));
+
+      await updateDoc(doc(db, 'owing_meds', owingId), {
+        medications: updatedMeds,
+        resolved
+      });
+
+      spawnAlert(`Owing status set to ${resolved ? 'RESOLVED' : 'UNRESOLVED'}`, 'success');
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `owing_meds/${owingId}`);
+    }
+  };
+
+  const toggleMedicineOwing = async (booking: Booking, targetMed: any, makeOwing: boolean) => {
+    try {
+      const existingRecord = owingMeds.find(om => om.bookingId === booking.id);
+      const drugNameStr = targetMed.drugName || targetMed.name || 'Unknown Medication';
+      
+      if (makeOwing) {
+        if (existingRecord) {
+          const updatedMeds = [...existingRecord.medications];
+          const medIdx = updatedMeds.findIndex(m => m.drugId === targetMed.drugId);
+          if (medIdx >= 0) {
+            updatedMeds[medIdx] = { ...updatedMeds[medIdx], received: false };
+          } else {
+            updatedMeds.push({
+              drugId: targetMed.drugId,
+              drugName: drugNameStr,
+              stockCode: targetMed.stockCode || 'N/A',
+              quantity: targetMed.quantity,
+              received: false
+            });
+          }
+          
+          await setDoc(doc(db, 'owing_meds', existingRecord.id), {
+            ...existingRecord,
+            medications: updatedMeds,
+            resolved: false
+          }, { merge: true });
+        } else {
+          const owingId = 'owing-' + booking.id;
+          const newOwing: OwingMedication = {
+            id: owingId,
+            bookingId: booking.id,
+            patientName: booking.patientName,
+            hn: booking.hn,
+            medications: [{
+              drugId: targetMed.drugId,
+              drugName: drugNameStr,
+              stockCode: targetMed.stockCode || 'N/A',
+              quantity: targetMed.quantity,
+              received: false
+            }],
+            reportedBy: currentUser?.name || 'Pharmacist',
+            createdAt: new Date().toISOString(),
+            resolved: false
+          };
+          await setDoc(doc(db, 'owing_meds', owingId), newOwing);
+        }
+
+        spawnAlert(
+          `🚨 OWING MED (ยังไม่ได้รับ): Patient ${booking.patientName} (HN: ${booking.hn}) lacks [${drugNameStr} x${targetMed.quantity}]. ALERT TO CLERK ISSUED!`,
+          'info',
+          booking.id,
+          booking.hn
+        );
+      } else {
+        if (existingRecord) {
+          const updatedMeds = existingRecord.medications.map(m => {
+            if (m.drugId === targetMed.drugId) {
+              return { ...m, received: true };
+            }
+            return m;
+          });
+          
+          const allReceived = updatedMeds.every(m => m.received === true);
+          
+          await setDoc(doc(db, 'owing_meds', existingRecord.id), {
+            ...existingRecord,
+            medications: updatedMeds,
+            resolved: allReceived
+          }, { merge: true });
+        }
+      }
+    } catch (e) {
+      const existingRecord = owingMeds.find(om => om.bookingId === booking.id);
+      const docId = existingRecord ? existingRecord.id : 'owing-' + booking.id;
+      handleFirestoreError(e, makeOwing ? OperationType.CREATE : OperationType.UPDATE, `owing_meds/${docId}`);
+    }
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -660,6 +1181,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         users,
         logs,
         alerts,
+        owingMeds,
         loading,
         language,
         setLanguage,
@@ -678,10 +1200,22 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         createDrug,
         updateDrug,
         deleteDrug,
+        requestDeleteDrug,
+        rejectDeleteDrug,
+        requestEditDrug,
+        approveEditDrug,
+        rejectEditDrug,
         createUser,
+        registerUser,
         updateUser,
         deleteUser,
-        clearAlerts
+        reportOwingMed,
+        updatePreparedStatus,
+        toggleOwingResolved,
+        toggleMedicineOwing,
+        clearAlerts,
+        selectedPharmacyLocation,
+        setSelectedPharmacyLocation
       }}
     >
       {children}

@@ -7,6 +7,7 @@ export interface User {
   role: UserRole;
   roles?: UserRole[];
   password?: string;
+  approved?: boolean;
 }
 
 export interface DrugPrices {
@@ -22,6 +23,19 @@ export interface Drug {
   type: 'General' | 'Oncology';
   stockCode: string;
   prices: DrugPrices;
+  deleteRequested?: boolean;
+  deleteReason?: string;
+  deleteRequestedBy?: string;
+  deleteRequestedAt?: string;
+  editRequested?: boolean;
+  editRequestedBy?: string;
+  editRequestedAt?: string;
+  editRequest?: {
+    name: string;
+    type: 'General' | 'Oncology';
+    stockCode: string;
+    prices: DrugPrices;
+  };
 }
 
 export interface BookingMedication {
@@ -55,6 +69,7 @@ export interface Booking {
   patientName: string;
   dateOfUse: string; // YYYY-MM-DD
   department: string;
+  pharmacyLocation?: string;
   mode: 'General' | 'Oncology';
   medications: BookingMedication[];
   totalAmount: number;
@@ -62,6 +77,9 @@ export interface Booking {
   staff: BookingStaff;
   pharmacistVerification: Verification;
   clerkVerification: Verification;
+  medicineReceived?: boolean;
+  pdfPrinted?: boolean;
+  stickerPrinted?: boolean;
   createdAt: string;
 }
 
@@ -80,6 +98,23 @@ export interface DBState {
   drugs: Drug[];
   bookings: Booking[];
   logs: SystemLog[];
+}
+
+export interface OwingMedication {
+  id: string;
+  bookingId: string;
+  patientName: string;
+  hn: string;
+  medications: Array<{
+    drugId: string;
+    drugName: string;
+    stockCode: string;
+    quantity: number;
+    received: boolean;
+  }>;
+  reportedBy: string;
+  createdAt: string;
+  resolved: boolean;
 }
 
 export function formatDateToDMY(dateStr: string): string {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { i18n } from '../lib/i18n';
 import { Booking, formatDateToDMY } from '../types';
@@ -7,9 +7,11 @@ import { Search, Eye, CheckCircle, Clock, Trash, Edit, Check, Printer, FileText 
 interface DataTableProps {
   onEditClick?: (id: string) => void;
   onPrintClick?: (booking: Booking) => void;
+  initialSearchQuery?: string;
+  onClearInitialSearch?: () => void;
 }
 
-export default function DataTable({ onEditClick, onPrintClick }: DataTableProps) {
+export default function DataTable({ onEditClick, onPrintClick, initialSearchQuery, onClearInitialSearch }: DataTableProps) {
   const {
     currentUser,
     bookings,
@@ -17,6 +19,7 @@ export default function DataTable({ onEditClick, onPrintClick }: DataTableProps)
     verifyPharmacist,
     verifyClerk,
     deleteBooking,
+    updateBooking,
     loading
   } = useApp();
 
@@ -26,6 +29,20 @@ export default function DataTable({ onEditClick, onPrintClick }: DataTableProps)
   const [activeTab, setActiveTab] = useState<'General' | 'Oncology'>('General');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialSearchQuery) {
+      setSearchQuery(initialSearchQuery);
+      const foundMatch = bookings.find((b) => {
+        const hMatch = b.hn.replace(/-/g, '').includes(initialSearchQuery.replace(/-/g, '')) || b.hn.includes(initialSearchQuery);
+        const nameMatch = b.patientName.toLowerCase().includes(initialSearchQuery.toLowerCase());
+        return hMatch || nameMatch;
+      });
+      if (foundMatch) {
+        setActiveTab(foundMatch.mode as 'General' | 'Oncology');
+      }
+    }
+  }, [initialSearchQuery, bookings]);
 
   // Filter queues
   const filteredBookings = bookings.filter((b) => {
@@ -79,7 +96,13 @@ export default function DataTable({ onEditClick, onPrintClick }: DataTableProps)
             id="table-search-input"
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setSearchQuery(val);
+              if (!val && onClearInitialSearch) {
+                onClearInitialSearch();
+              }
+            }}
             placeholder={t.searchPlaceholder}
             className="w-full bg-slate-50 border border-slate-200 pl-10 pr-4 py-2 rounded-full text-xs focus:outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all font-sans"
           />
@@ -125,7 +148,7 @@ export default function DataTable({ onEditClick, onPrintClick }: DataTableProps)
                     <tr key={b.id} className="hover:bg-slate-50/40 transition-colors">
                       {/* ID and time */}
                       <td className="p-4 whitespace-nowrap">
-                        <span className="font-mono text-[11px] font-bold text-slate-600 block">
+                        <span className="text-[11px] font-bold text-slate-600 block">
                           {b.id}
                         </span>
                         <span className="text-[10px] text-slate-400">
@@ -145,8 +168,8 @@ export default function DataTable({ onEditClick, onPrintClick }: DataTableProps)
                             </span>
                           )}
                         </div>
-                        <div className="flex gap-2 items-center text-[10px] text-slate-400 mt-1 font-mono">
-                          <span>HN: {b.hn}</span>
+                        <div className="flex gap-2 items-center text-[10px] text-slate-400 mt-1">
+                          <span className="font-mono bg-slate-100/90 text-slate-700 px-1.5 py-0.5 rounded text-[9.5px] font-bold tracking-wider whitespace-nowrap inline-block">HN: {b.hn}</span>
                           <span>•</span>
                           <span className="uppercase">{b.medications[0]?.priceType || 'OPD'}</span>
                           <span>•</span>
@@ -156,7 +179,7 @@ export default function DataTable({ onEditClick, onPrintClick }: DataTableProps)
 
                       {/* Date of use */}
                       <td className="p-4 whitespace-nowrap">
-                        <span className="font-semibold text-slate-800 font-mono text-[11px]">
+                        <span className="font-semibold text-slate-800 text-[11px]">
                           {formatDateToDMY(b.dateOfUse)}
                         </span>
                         <p className="text-[10px] text-slate-400">Administration Date</p>
@@ -168,10 +191,10 @@ export default function DataTable({ onEditClick, onPrintClick }: DataTableProps)
                           {b.medications.map((item, idx) => (
                             <div key={idx} className="flex justify-between text-[11px] text-slate-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
                               <span className="font-medium truncate max-w-[150px]">{item.drugName}</span>
-                              <span className="font-semibold text-slate-800 font-mono">x{item.quantity}</span>
+                              <span className="font-semibold text-slate-800">x{item.quantity}</span>
                             </div>
                           ))}
-                          <div className="text-right text-[10px] font-bold text-blue-600 font-mono">
+                          <div className="text-right text-[10px] font-bold text-blue-600">
                             Total: ฿{b.totalAmount.toLocaleString()}
                           </div>
                         </div>
@@ -230,16 +253,28 @@ export default function DataTable({ onEditClick, onPrintClick }: DataTableProps)
                             </span>
                           )}
 
-                          {/* Single Slip Printable report trigger */}
+                          {/* Print PDF Action */}
                           {onPrintClick && (
-                            <button
-                              type="button"
-                              onClick={() => onPrintClick(b)}
-                              className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 rounded-lg transition-colors cursor-pointer"
-                              title={t.printSingleReport}
-                            >
-                              <Printer className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="flex flex-col gap-1 items-stretch">
+                              <button
+                                type="button"
+                                id={`print-pdf-${b.id}`}
+                                onClick={() => {
+                                  updateBooking(b.id, { pdfPrinted: true });
+                                  onPrintClick(b);
+                                }}
+                                className={`p-1.5 px-3.5 flex items-center justify-center gap-1.5 rounded-lg text-[10px] font-bold uppercase transition-colors overflow-hidden ${
+                                  b.pdfPrinted 
+                                    ? 'bg-blue-50 text-blue-600 border border-blue-200 shadow-[0_1px_2px_rgba(0,0,0,0.02)]'
+                                    : 'bg-white hover:bg-slate-50 text-slate-600 border border-slate-200'
+                                }`}
+                                title="Print / Generate PDF Slip"
+                              >
+                                <Printer className="w-3.5 h-3.5 text-blue-500" />
+                                <span>PDF</span>
+                                {b.pdfPrinted && <CheckCircle className="w-3 h-3 text-blue-500" />}
+                              </button>
+                            </div>
                           )}
 
                           {/* Verify as pharmacist trigger */}

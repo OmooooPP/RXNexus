@@ -113,18 +113,19 @@ export default function QueueCalendar() {
       </div>
 
       {/* Month Calendar Grid board */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden p-4">
-        {/* Week Day labels */}
-        <div className="grid grid-cols-7 text-center font-bold text-[10px] text-slate-400 uppercase tracking-wider py-2 border-b border-slate-100">
-          {WEEKDAYS.map((day) => (
-            <div key={day} className="py-2">
-              {day}
-            </div>
-          ))}
-        </div>
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-2 md:p-4 w-full overflow-x-hidden">
+        <div className="w-full">
+          {/* Week Day labels */}
+          <div className="grid grid-cols-7 text-center font-bold text-[10px] md:text-xs text-slate-400 uppercase tracking-wider py-2 border-b border-slate-100">
+            {WEEKDAYS.map((day) => (
+              <div key={day} className="py-2">
+                {day}
+              </div>
+            ))}
+          </div>
 
-        {/* Date body grid cells */}
-        <div className="grid grid-cols-7 grid-rows-5 gap-1.5 mt-2 min-h-[480px]">
+          {/* Date body grid cells */}
+          <div className="grid grid-cols-7 grid-auto-rows gap-1.5 mt-2 md:gap-2">
           {cells.map((dateObj, idx) => {
             if (!dateObj) {
               return (
@@ -143,30 +144,30 @@ export default function QueueCalendar() {
             return (
               <div
                 key={dateStr}
-                className={`bg-white border rounded-lg p-2 flex flex-col hover:shadow-xs transition-all min-h-[90px] ${
+                className={`bg-white border rounded-md md:rounded-lg p-1 md:p-2 flex flex-col hover:shadow-xs transition-all min-h-[70px] md:min-h-[140px] xl:min-h-[160px] ${
                   isToday
-                    ? 'border-blue-600 ring-2 ring-blue-50 bg-blue-50/10'
+                    ? 'border-blue-600 ring-1 md:ring-2 ring-blue-50 bg-blue-50/10'
                     : 'border-slate-100'
                 }`}
               >
                 {/* Date digit */}
-                <div className="flex justify-between items-center mb-1">
+                <div className="flex justify-between items-center mb-0.5 md:mb-1">
                   <span
-                    className={`text-xs font-bold leading-none w-5 h-5 flex items-center justify-center rounded-full ${
+                    className={`text-[10px] md:text-xs font-bold leading-none w-4 h-4 md:w-5 md:h-5 flex items-center justify-center rounded-full ${
                       isToday ? 'bg-blue-600 text-white' : 'text-slate-500'
                     }`}
                   >
                     {dateObj.getDate()}
                   </span>
                   {dayBookings.length > 0 && (
-                    <span className="text-[9px] text-slate-400 font-semibold font-mono">
+                    <span className="text-[8px] md:text-[9px] text-slate-400 font-semibold font-mono">
                       ({dayBookings.length})
                     </span>
                   )}
                 </div>
 
                 {/* Day medication list elements inside card */}
-                <div className="flex-1 space-y-1 overflow-y-auto max-h-[70px] custom-mini-scroll text-[10px]">
+                <div className="flex-1 space-y-0.5 md:space-y-1 overflow-y-auto max-h-[50px] md:max-h-[110px] xl:max-h-[135px] custom-mini-scroll">
                   {dayBookings.map((b) => {
                     const isAllClerkDelivered = b.clerkVerification.status === 'Ready-to-use';
                     const isOnco = b.mode === 'Oncology';
@@ -176,15 +177,16 @@ export default function QueueCalendar() {
                         id={`calendar-event-${b.id}`}
                         key={b.id}
                         onClick={() => setSelectedBooking(b)}
-                        className={`p-1 rounded border text-[10px] font-semibold truncate cursor-pointer transition-all hover:scale-[1.02] flex items-center justify-between ${
+                        className={`p-0.5 md:p-1 rounded md:border text-[8px] md:text-[10px] font-semibold truncate cursor-pointer transition-all hover:scale-[1.02] flex items-center md:justify-between ${
                           isOnco
-                            ? 'bg-red-50 text-red-700 hover:bg-red-100 border-red-200/50'
-                            : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200/50'
+                            ? 'bg-red-50 text-red-700 hover:bg-red-100 md:border-red-200/50'
+                            : 'bg-blue-50 text-blue-700 hover:bg-blue-100 md:border-blue-200/50'
                         }`}
                         title={b.patientName}
                       >
                         <span className="truncate flex-1">
-                          {isAllClerkDelivered ? '✅ ' : '⚠️ '}
+                          <span className="hidden md:inline">{isAllClerkDelivered ? '✅ ' : '⚠️ '}</span>
+                          <span className="md:hidden">{isAllClerkDelivered ? '✅' : '⚠️'} </span>
                           {b.patientName}
                         </span>
                       </div>
@@ -195,12 +197,13 @@ export default function QueueCalendar() {
             );
           })}
         </div>
+        </div>
       </div>
 
       {/* Interactive Detail Modal dialog popup */}
       {selectedBooking && (
         <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 transition-all">
-          <div className="bg-white rounded-3xl border border-neutral-100 shadow-2xl max-w-xl w-full flex flex-col overflow-hidden max-h-[90vh]">
+          <div className="bg-white rounded-3xl border border-neutral-100 shadow-2xl max-w-2xl w-full flex flex-col overflow-hidden max-h-[90vh]">
             {/* Model Title */}
             <div className="p-5 bg-neutral-50 border-b border-neutral-100 flex justify-between items-start">
               <div>
@@ -230,15 +233,15 @@ export default function QueueCalendar() {
                 </div>
                 <div>
                   <p className="text-neutral-400 mb-0.5">{t.hn}</p>
-                  <p className="font-bold text-neutral-800 font-mono">{selectedBooking.hn}</p>
+                  <p className="font-mono font-bold text-neutral-800 tracking-wider text-[11px] bg-slate-100 px-2 py-0.5 rounded inline-block whitespace-nowrap">{selectedBooking.hn}</p>
                 </div>
                 <div>
                   <p className="text-neutral-400 mb-0.5">{t.dateOfUse}</p>
-                  <p className="font-bold text-neutral-800 font-mono text-[11px]">{formatDateToDMY(selectedBooking.dateOfUse)}</p>
+                  <p className="font-bold text-neutral-800 text-[11px]">{formatDateToDMY(selectedBooking.dateOfUse)}</p>
                 </div>
                 <div>
                   <p className="text-neutral-400 mb-0.5">{t.department}</p>
-                  <p className="font-bold text-neutral-840 text-neutral-700">{selectedBooking.department}</p>
+                  <p className="font-bold text-neutral-700">{selectedBooking.department}</p>
                 </div>
               </div>
 
@@ -261,13 +264,13 @@ export default function QueueCalendar() {
                       <tr key={idx} className="hover:bg-neutral-50/50 text-neutral-600">
                         <td className="p-2 font-medium">{item.drugName}</td>
                         <td className="p-2 text-center font-semibold">{item.quantity}</td>
-                        <td className="p-2 text-right font-mono">฿{item.unitPrice.toLocaleString()}</td>
-                        <td className="p-2 text-right font-bold text-neutral-800 font-mono">฿{item.totalPrice.toLocaleString()}</td>
+                        <td className="p-2 text-right">฿{item.unitPrice.toLocaleString()}</td>
+                        <td className="p-2 text-right font-bold text-neutral-800">฿{item.totalPrice.toLocaleString()}</td>
                       </tr>
                     ))}
                     <tr className="bg-neutral-50 text-neutral-700 font-bold">
                       <td colSpan={3} className="p-2 text-right uppercase tracking-wider">{t.totalAmount}:</td>
-                      <td className="p-2 text-right text-emerald-700 font-mono">฿{selectedBooking.totalAmount.toLocaleString()}</td>
+                      <td className="p-2 text-right text-emerald-700">฿{selectedBooking.totalAmount.toLocaleString()}</td>
                     </tr>
                   </tbody>
                 </table>

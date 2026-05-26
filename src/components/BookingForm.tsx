@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { i18n } from '../lib/i18n';
 import { BookingMedication, Drug } from '../types';
-import { Plus, Trash, Image as ImageIcon, CheckCircle, Search, HelpCircle } from 'lucide-react';
+import { Plus, Trash, Image as ImageIcon, CheckCircle, Search, HelpCircle, X, Printer, Check, Copy, ChevronDown } from 'lucide-react';
+import { printElementByNewWindow } from '../utils/print';
 
 interface BookingFormProps {
+  key?: string | number;
   editId?: string;
   onSuccess?: () => void;
   onCancel?: () => void;
@@ -18,7 +20,8 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
     language,
     createBooking,
     updateBooking,
-    fetchDrugs
+    fetchDrugs,
+    setSelectedPharmacyLocation
   } = useApp();
 
   const t = i18n[language];
@@ -32,7 +35,8 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
   const [hn, setHn] = useState(existingRecord ? existingRecord.hn : '');
   const [patientName, setPatientName] = useState(existingRecord ? existingRecord.patientName : '');
   const [dateOfUse, setDateOfUse] = useState(existingRecord ? existingRecord.dateOfUse : new Date().toISOString().split('T')[0]);
-  const [department, setDepartment] = useState(existingRecord ? existingRecord.department : 'General Ward 3D');
+  const [department, setDepartment] = useState(existingRecord ? existingRecord.department : 'Oncology');
+  const [pharmacyLocation, setPharmacyLocation] = useState(existingRecord ? existingRecord.pharmacyLocation || '' : '');
   const [patientType, setPatientType] = useState<'employee' | 'opd' | 'ipd' | 'it'>(
     existingRecord && existingRecord.medications.length > 0 
       ? existingRecord.medications[0].priceType 
@@ -67,8 +71,10 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
   );
 
   // Active Dropdowns state in specific lines
+  const [drugSearchQuery, setDrugSearchQuery] = useState<string>('');
   const [activeDrugId, setActiveDrugId] = useState<string>('');
   const [activeQty, setActiveQty] = useState<number>(1);
+  const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
 
   // File Upload Progress
   const [imageEncoded, setImageEncoded] = useState<string>(existingRecord ? existingRecord.prescriptionImage : '');
@@ -76,6 +82,8 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
 
   const [validationError, setValidationError] = useState<string>('');
   const [successMsg, setSuccessMsg] = useState<string>('');
+  const [bookedReceipt, setBookedReceipt] = useState<any | null>(null);
+  const [copied, setCopied] = useState<boolean>(false);
 
   // Fetch latest drug directory
   useEffect(() => {
@@ -83,7 +91,16 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
   }, []);
 
   // Filter drugs directory based on selected Class Mode (General/Oncology)
-  const filteredDrugs = drugs.filter((d) => d.type === mode);
+  const filteredDrugs = drugs.filter((d) => d.type === mode && !d.deleteRequested);
+
+  // Query selected drug obj
+  const selectedDrugObj = filteredDrugs.find((d) => d.id === activeDrugId);
+
+  // Filter drugs directory based on typing query in select
+  const filteredDrugsBySearch = filteredDrugs.filter((d) =>
+    d.name.toLowerCase().includes((drugSearchQuery || '').toLowerCase()) ||
+    d.stockCode.toLowerCase().includes((drugSearchQuery || '').toLowerCase())
+  );
 
   // Reset selected drugs catalog on mode flip
   useEffect(() => {
@@ -238,6 +255,7 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
 
     // Reset drug picker state
     setActiveDrugId('');
+    setDrugSearchQuery('');
     setActiveQty(1);
   };
 
@@ -256,7 +274,7 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
     setSuccessMsg('');
 
     // Strict validation guidelines
-    if (!hn || !patientName || !doctor || !nurse) {
+    if (!hn || !patientName || !doctor) {
       setValidationError(t.requiredFields);
       return;
     }
@@ -277,6 +295,7 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
       patientName: patientName.trim(),
       dateOfUse,
       department: department.trim(),
+      pharmacyLocation: pharmacyLocation.trim(),
       mode,
       medications: selectedMeds,
       totalAmount: grandTotal,
@@ -301,12 +320,14 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
       const result = await createBooking(payload);
       if (result.success) {
         setSuccessMsg('Medical reservation ledger created!');
+        // Save the detailed response to show the Success window tab modal
+        setBookedReceipt(result.booking || { ...payload, id: `RXN-${Date.now()}` });
         // Clear forms
         setHn('');
         setPatientName('');
+        setPharmacyLocation('');
         setSelectedMeds([]);
         setImageEncoded('');
-        if (onSuccess) onSuccess();
       } else {
         setValidationError(result.error || 'System Creation Fail');
       }
@@ -314,7 +335,8 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
   };
 
   return (
-    <form onSubmit={handleCommitSubmit} className="space-y-6">
+    <>
+      <form onSubmit={handleCommitSubmit} className="space-y-6 pb-40 md:pb-0">
       {/* Title */}
       <div className="flex border-b border-slate-200 pb-3 justify-between items-center bg-slate-50 p-4 rounded-xl">
         <div>
@@ -368,7 +390,7 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
       )}
 
       {/* Grid of basic patient identification */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5 bg-white p-4 md:p-5 rounded-xl border border-slate-200 shadow-sm">
         <div className="col-span-1 md:col-span-2">
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 border-l-2 border-blue-600 pl-2">
             {t.patientDetails}
@@ -376,7 +398,7 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1">{t.hn} *</label>
+          <label className="block text-xs md:text-sm font-bold text-slate-700 mb-1.5">{t.hn} *</label>
           <input
             id="hn-input"
             type="text"
@@ -384,13 +406,13 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
             value={hn}
             onChange={handleHNChange}
             placeholder={t.hnPlaceholder}
-            className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-xs font-mono font-bold focus:outline-hidden focus:border-blue-500 focus:bg-white"
+            className="w-full bg-slate-50 border border-slate-200 px-2.5 py-2 md:px-3 md:py-2.5 rounded-lg text-xs md:text-sm font-mono font-bold focus:outline-hidden focus:border-blue-500 focus:bg-white"
           />
           <p className="text-[10px] text-slate-400 mt-1">Format auto-spaced: 02-xx-xxxxxx</p>
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1">{t.patientName} *</label>
+          <label className="block text-xs md:text-sm font-bold text-slate-700 mb-1.5">{t.patientName} *</label>
           <input
             id="patient-name-input"
             type="text"
@@ -398,32 +420,73 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
             value={patientName}
             onChange={(e) => setPatientName(e.target.value)}
             placeholder={t.patientNamePlaceholder}
-            className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-xs focus:outline-hidden focus:border-blue-500 focus:bg-white"
+            className="w-full bg-slate-50 border border-slate-200 px-2.5 py-2 md:px-3 md:py-2.5 rounded-lg text-xs md:text-sm focus:outline-hidden focus:border-blue-500 focus:bg-white"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1">{t.dateOfUse} *</label>
+          <label className="block text-xs md:text-sm font-bold text-slate-700 mb-1.5">{t.dateOfUse} *</label>
           <input
             id="date-of-use-input"
             type="date"
             required
             value={dateOfUse}
             onChange={(e) => setDateOfUse(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-xs focus:outline-hidden focus:border-blue-500 focus:bg-white"
+            className="w-full bg-slate-50 border border-slate-200 px-2.5 py-2 md:px-3 md:py-2.5 rounded-lg text-xs md:text-sm focus:outline-hidden focus:border-blue-500 focus:bg-white"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1">{t.department}</label>
-          <input
-            id="department-input"
-            type="text"
+          <label className="block text-xs md:text-sm font-bold text-slate-700 mb-1.5">{t.department} *</label>
+          <select
+            id="department-select"
+            required
             value={department}
             onChange={(e) => setDepartment(e.target.value)}
-            placeholder="e.g., Cancer Unit Bed-3"
-            className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-xs focus:outline-hidden focus:border-blue-500 focus:bg-white"
-          />
+            className="w-full bg-slate-50 border border-slate-200 px-2.5 py-2 md:px-3 md:py-2.5 rounded-lg text-xs md:text-sm font-medium focus:outline-hidden focus:border-blue-500 focus:bg-white"
+          >
+            <option value="Oncology">Oncology</option>
+            <option value="Medicine Subboard">Medicine Subboard</option>
+            <option value="Diabetic & Endocrine">Diabetic & Endocrine</option>
+            <option value="Mental Health">Mental Health</option>
+            <option value="Heart Center">Heart Center</option>
+            <option value="Neuroscience">Neuroscience</option>
+            <option value="GI">GI</option>
+            <option value="ENT">ENT</option>
+            <option value="Women health">Women health</option>
+            <option value="Orthopedic">Orthopedic</option>
+            <option value="Urology">Urology</option>
+            <option value="Dermatology">Dermatology</option>
+            <option value="Pediatrics">Pediatrics</option>
+            <option value="Eye center">Eye center</option>
+            <option value="Lasik center">Lasik center</option>
+            <option value="Prestige Wellness">Prestige Wellness</option>
+            <option value="Hemodialysis">Hemodialysis</option>
+            <option value="Rehab">Rehab</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-xs md:text-sm font-bold text-slate-700 mb-1.5">{t.pharmacyLocation}</label>
+          <select
+            id="pharmacy-location-select"
+            value={pharmacyLocation}
+            onChange={(e) => {
+              const val = e.target.value;
+              setPharmacyLocation(val);
+              if (val) {
+                setSelectedPharmacyLocation(val);
+              }
+            }}
+            className="w-full bg-slate-50 border border-slate-200 px-2.5 py-2 md:px-3 md:py-2.5 rounded-lg text-xs md:text-sm font-medium focus:outline-hidden focus:border-blue-500 focus:bg-white"
+          >
+            <option value="">{t.pharmacyLocationPlaceholder}</option>
+            <option value="Phar IV">Phar IV</option>
+            <option value="Phar A1">Phar A1</option>
+            <option value="Phar E3">Phar E3</option>
+            <option value="Phar E6">Phar E6</option>
+            <option value="Phar D">Phar D</option>
+          </select>
         </div>
 
         <div className="col-span-1 md:col-span-2">
@@ -456,30 +519,87 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
       </div>
 
       {/* Medication Lists */}
-      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+      <div className="bg-white p-4 md:p-5 rounded-xl border border-slate-200 shadow-sm space-y-3 md:space-y-4">
         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 border-l-2 border-blue-600 pl-2">
           {t.medTitle}
         </h3>
 
         {/* Drug picker line */}
-        <div className="flex flex-col sm:flex-row gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
-          <div className="flex-1">
+        <div className="flex flex-col sm:flex-row gap-2 md:gap-3 bg-slate-50 p-2 md:p-3 rounded-lg border border-slate-200 items-end">
+          <div className="flex-1 w-full">
             <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">
               {t.selectDrug}
             </label>
-            <select
-              id="active-drug-select"
-              value={activeDrugId}
-              onChange={(e) => setActiveDrugId(e.target.value)}
-              className="w-full bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs focus:outline-hidden"
-            >
-              <option value="">-- {t.selectDrug} --</option>
-              {filteredDrugs.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name} ({d.stockCode}) — ฿{d.prices[patientType].toLocaleString()}
-                </option>
-              ))}
-            </select>
+            
+            <div className="relative" id="drug-select-container">
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  placeholder={language === 'TH' ? 'พิมพ์ค้นหาชื่อยา หรือ รหัสเวชภัณฑ์...' : 'Search medicine name or code...'}
+                  value={isDropdownOpen ? drugSearchQuery : (selectedDrugObj ? `${selectedDrugObj.name} (${selectedDrugObj.stockCode})` : drugSearchQuery)}
+                  onChange={(e) => {
+                    setDrugSearchQuery(e.target.value);
+                    if (activeDrugId) {
+                      setActiveDrugId(''); // Clear selection on typing so they have to pick from dropdown
+                    }
+                  }}
+                  onFocus={() => setIsDropdownOpen(true)}
+                  onBlur={() => {
+                    // Slight delay to allow option onMouseDown event to register
+                    setTimeout(() => setIsDropdownOpen(false), 200);
+                  }}
+                  className="w-full bg-white border border-slate-200 pl-3 pr-8 py-2 md:py-2.5 rounded-lg text-xs md:text-sm font-semibold focus:outline-hidden focus:border-blue-500 focus:bg-white animate-fade-in"
+                />
+                
+                {/* Clear button and Chevron action */}
+                <div className="absolute right-2.5 flex items-center gap-1">
+                  {(activeDrugId || drugSearchQuery) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveDrugId('');
+                        setDrugSearchQuery('');
+                      }}
+                      className="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 cursor-pointer"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                  <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                </div>
+              </div>
+
+              {/* Suggestions Dropdown Popover */}
+              {isDropdownOpen && (
+                <div className="absolute left-0 mt-1 w-full max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg z-50 divide-y divide-slate-100 custom-mini-scroll">
+                  {filteredDrugsBySearch.length === 0 ? (
+                    <div className="p-3 text-center text-xs text-slate-400/80">
+                      {language === 'TH' ? '❌ ไม่พบรายการเวชภัณฑ์ยา' : '❌ No matching medicines'}
+                    </div>
+                  ) : (
+                    filteredDrugsBySearch.map((d) => (
+                      <div
+                        key={d.id}
+                        onMouseDown={() => {
+                          setActiveDrugId(d.id);
+                          setDrugSearchQuery(d.name);
+                          setIsDropdownOpen(false);
+                        }}
+                        className={`p-2.5 text-xs text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer transition-colors text-left font-sans ${
+                          activeDrugId === d.id ? 'bg-blue-50 font-bold text-blue-800' : ''
+                        }`}
+                      >
+                        <div className="font-bold text-slate-800">{d.name}</div>
+                        <div className="text-[10px] text-slate-500 mt-1 flex items-center justify-between">
+                          <span>Code: <span className="font-mono bg-slate-100 px-1 py-0.5 rounded text-slate-700">{d.stockCode}</span></span>
+                          <span className="font-bold text-blue-600">฿{d.prices[patientType].toLocaleString()}</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="w-full sm:w-28">
@@ -525,7 +645,7 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
               <thead>
                 <tr className="bg-slate-50 text-slate-500 uppercase tracking-wider text-[10px] font-bold border-b border-slate-200">
                   <th className="p-3">Medicine Info</th>
-                  <th className="p-3">SKU Code</th>
+                  <th className="p-3">Stock Code</th>
                   <th className="p-3 text-center">Qty</th>
                   <th className="p-3 text-right">Unit Rate</th>
                   <th className="p-3 text-right">Subtotal</th>
@@ -536,10 +656,10 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
                 {selectedMeds.map((med) => (
                   <tr key={med.drugId} className="hover:bg-slate-50/55 transition-colors text-slate-700">
                     <td className="p-3 font-semibold text-slate-800">{med.drugName}</td>
-                    <td className="p-3 font-mono text-slate-400">{med.stockCode}</td>
+                    <td className="p-3 text-slate-400 font-bold">{med.stockCode}</td>
                     <td className="p-3 font-semibold text-center">{med.quantity}</td>
-                    <td className="p-3 text-right font-mono text-slate-500">฿{med.unitPrice.toLocaleString()}</td>
-                    <td className="p-3 text-right font-bold text-slate-800 font-mono">฿{med.totalPrice.toLocaleString()}</td>
+                    <td className="p-3 text-right text-slate-500 font-semibold">฿{med.unitPrice.toLocaleString()}</td>
+                    <td className="p-3 text-right font-bold text-slate-800">฿{med.totalPrice.toLocaleString()}</td>
                     <td className="p-3 text-center">
                       <button
                         type="button"
@@ -556,7 +676,7 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
                   <td colSpan={4} className="p-3 text-right text-slate-600 uppercase tracking-wider">
                     {t.totalAmount}:
                   </td>
-                  <td className="p-3 text-right text-blue-700 font-bold text-sm font-mono">
+                  <td className="p-3 text-right text-blue-700 font-bold text-sm">
                     ฿{grandTotal.toLocaleString()}
                   </td>
                   <td></td>
@@ -568,7 +688,7 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
       </div>
 
       {/* File Upload prescription section */}
-      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+      <div className="bg-white p-4 md:p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 border-l-2 border-blue-600 pl-2">
           {t.prescriptionLogo}
         </h3>
@@ -577,7 +697,7 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
         <div
           onDragOver={handleDragOver}
           onDrop={handleDrop}
-          className="border-2 border-dashed border-slate-200 rounded-xl p-6 bg-slate-50 hover:bg-slate-100/50 hover:border-blue-500 transition-all text-center flex flex-col items-center justify-center cursor-pointer relative"
+          className="border-2 border-dashed border-slate-200 rounded-xl p-4 md:p-6 bg-slate-50 hover:bg-slate-100/50 hover:border-blue-500 transition-all text-center flex flex-col items-center justify-center cursor-pointer relative"
         >
           <input
             id="prescription-file-input"
@@ -627,14 +747,14 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
       </div>
 
       {/* Staff Signoffs */}
-      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+      <div className="bg-white p-4 md:p-5 rounded-xl border border-slate-200 shadow-sm space-y-3 md:space-y-4">
         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 border-l-2 border-blue-600 pl-2">
           {t.staffSignoff}
         </h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">{t.selectDoctor} *</label>
+            <label className="block text-xs md:text-sm font-bold text-slate-700 mb-1.5">{t.selectDoctor} *</label>
             <input
               id="doctor-input"
               type="text"
@@ -642,7 +762,7 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
               value={doctor}
               onChange={(e) => setDoctor(e.target.value)}
               placeholder="e.g., Dr. Gregory House"
-              className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-xs focus:outline-hidden"
+              className="w-full bg-slate-50 border border-slate-200 px-2.5 py-2 md:px-3 md:py-2 rounded-lg text-xs md:text-sm focus:outline-hidden"
               required
             />
             <datalist id="doctors-list">
@@ -653,7 +773,7 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">{t.selectNurse} *</label>
+            <label className="block text-xs md:text-sm font-bold text-slate-700 mb-1.5">{t.selectNurse}</label>
             <input
               id="nurse-input"
               type="text"
@@ -661,8 +781,7 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
               value={nurse}
               onChange={(e) => setNurse(e.target.value)}
               placeholder="e.g., Nurse Clara"
-              className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-xs focus:outline-hidden"
-              required
+              className="w-full bg-slate-50 border border-slate-200 px-2.5 py-2 md:px-3 md:py-2 rounded-lg text-xs md:text-sm focus:outline-hidden"
             />
             <datalist id="nurses-list">
               {suggestedNurses.map((nrs) => (
@@ -672,14 +791,14 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">{t.selectPharmacist}</label>
+            <label className="block text-xs md:text-sm font-bold text-slate-700 mb-1.5">{t.selectPharmacist}</label>
             <input
               id="pharmacist-input"
               type="text"
               placeholder="e.g., Dr. Sarah Smith (Pharmacist)"
               value={pharmacist}
               onChange={(e) => setPharmacist(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-xs focus:outline-hidden"
+              className="w-full bg-slate-50 border border-slate-200 px-2.5 py-2 md:px-3 md:py-2 rounded-lg text-xs md:text-sm focus:outline-hidden"
             />
           </div>
         </div>
@@ -687,37 +806,177 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
 
       {/* General Validation & Success banners */}
       {validationError && (
-        <div className="bg-red-50 border border-red-100 rounded-xl p-4 text-xs font-semibold text-red-600">
-          ⚠️ {validationError}
+        <div className="bg-red-50 border-2 border-red-500 rounded-xl p-4 md:p-4 text-sm font-bold text-red-700 shadow-sm flex items-center gap-3">
+          <span className="text-xl">⚠️</span>
+          {validationError}
         </div>
       )}
 
       {successMsg && (
-        <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-xs font-semibold text-blue-700 flex items-center gap-2">
-          <CheckCircle className="w-4 h-4 text-blue-500" />
+        <div className="bg-emerald-50 border-2 border-emerald-500 rounded-xl p-4 md:p-4 text-sm font-bold text-emerald-800 flex items-center gap-3 shadow-sm">
+          <CheckCircle className="w-6 h-6 text-emerald-600 shrink-0" />
           {successMsg}
         </div>
       )}
 
       {/* Form Action Controls */}
-      <div className="flex gap-4 pt-2 justify-end">
-        {onCancel && (
+      <div className="fixed bottom-[calc(64px+env(safe-area-inset-bottom))] left-0 w-full bg-white border-t border-slate-200 p-3 flex gap-3 md:gap-4 md:static md:w-auto md:bg-transparent md:border-none md:p-0 md:justify-end z-40">
+        <div className="flex gap-3 w-full md:w-auto justify-end">
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="flex-1 md:flex-none px-4 py-2.5 md:px-5 md:py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs md:text-sm font-bold transition-colors shadow-xs cursor-pointer"
+            >
+              {t.cancel}
+            </button>
+          )}
           <button
-            type="button"
-            onClick={onCancel}
-            className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-sm font-medium transition-colors shadow-xs cursor-pointer"
+            id="submit-booking-form-btn"
+            type="submit"
+            className="flex-[2] md:flex-none px-4 py-2.5 md:px-6 md:py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
           >
-            {t.cancel}
+            {t.submitForm}
           </button>
-        )}
-        <button
-          id="submit-booking-form-btn"
-          type="submit"
-          className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold uppercase transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
-        >
-          {t.submitForm}
-        </button>
+        </div>
       </div>
     </form>
-  );
+
+    {/* Booking Success Receipt Window Tab Modal Overlay */}
+    {bookedReceipt && (
+      <div id="booking-success-tab-overlay" className="fixed inset-0 bg-slate-900/55 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto animate-fade-in text-slate-700">
+        <div id="booking-receipt-printable" className="bg-white rounded-2xl border border-emerald-100 shadow-2xl max-w-lg w-full flex flex-col overflow-hidden leading-relaxed my-auto">
+          {/* Elegant Header */}
+          <div className="p-6 bg-slate-50 border-b border-slate-100 text-center relative flex flex-col items-center">
+            <div className="w-12 h-12 bg-emerald-100 font-bold rounded-full flex items-center justify-center text-emerald-600 mb-2">
+              <CheckCircle className="w-7 h-7" />
+            </div>
+            <h3 className="font-extrabold text-sm uppercase tracking-wide text-emerald-800">
+              {language === 'TH' ? 'สำรองเวชภัณฑ์ยาสำเร็จแล้ว' : 'Medication Reserved Successfully'}
+            </h3>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              {language === 'TH' ? 'หลักฐานการจองสิทธิ์ทำรายการยา (Real-time Ledger)' : 'Official clinical ledger reservation proof'}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setBookedReceipt(null);
+                if (onSuccess) onSuccess();
+              }}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 font-mono text-sm hover:bg-slate-100 p-1.5 rounded-lg cursor-pointer print:hidden"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Receipt Summary Body */}
+          <div className="p-6 space-y-4 text-xs">
+            <div className="bg-emerald-50/40 border border-emerald-100 px-4 py-3 rounded-xl flex justify-between items-center">
+              <div>
+                <span className="text-slate-400 block text-[9px] uppercase font-bold tracking-wider">{language === 'TH' ? 'หมายเลขใบสำรอง' : 'Booking Ledger Code'}</span>
+                <span className="text-[13px] font-black text-emerald-950 block">{bookedReceipt.id}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(bookedReceipt.id);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }}
+                className="px-2.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-[10px] font-bold uppercase rounded-lg transition-colors flex items-center gap-1 cursor-pointer print:hidden"
+              >
+                {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
+                {copied ? (language === 'TH' ? 'คัดลอกแล้ว' : 'Copied!') : (language === 'TH' ? 'คัดลอกรหัส' : 'Copy Code')}
+              </button>
+            </div>
+
+            {/* Patient and Hospital Details */}
+            <div className="grid grid-cols-2 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-100">
+              <div className="space-y-0.5">
+                <span className="block text-slate-400 text-[9px] uppercase font-bold">{language === 'TH' ? 'เลขที่ HN ของผู้ป่วย' : 'Hospital Number (HN)'}</span>
+                <span className="font-mono font-bold text-slate-800 text-[11px] whitespace-nowrap inline-block">{bookedReceipt.hn}</span>
+              </div>
+              <div className="space-y-0.5">
+                <span className="block text-slate-400 text-[9px] uppercase font-bold">{language === 'TH' ? 'ชื่อเครื่องหลักผู้ป่วย' : 'Patient Full Name'}</span>
+                <span className="font-bold text-slate-800 text-[11px]">{bookedReceipt.patientName}</span>
+              </div>
+              <div className="space-y-0.5">
+                <span className="block text-slate-400 text-[9px] uppercase font-bold">{language === 'TH' ? 'แผนก / เครือข่าย' : 'Department Name'}</span>
+                <span className="text-slate-700 font-medium text-[11px]">{bookedReceipt.department}</span>
+              </div>
+              <div className="space-y-0.5">
+                <span className="block text-slate-400 text-[9px] uppercase font-bold">{language === 'TH' ? 'หมวดหมู่การสำรอง' : 'Classification Mode'}</span>
+                <span className={`inline-block font-extrabold uppercase text-[9px] ${bookedReceipt.mode === 'Oncology' ? 'text-red-650 text-red-600' : 'text-blue-650 text-blue-600'}`}>{bookedReceipt.mode}</span>
+              </div>
+            </div>
+
+            {/* Medications Table List */}
+            <div className="space-y-1.5">
+              <div className="text-[10px] text-slate-400 uppercase font-black tracking-wider">{language === 'TH' ? 'รายการเวชภัณฑ์ยาที่ทำการสำรอง' : 'Reserved Medications Itemization'}</div>
+              <div className="border border-slate-100 rounded-xl overflow-hidden">
+                <table className="w-full text-left border-collapse bg-slate-50/50">
+                  <thead>
+                    <tr className="bg-slate-100/80 text-slate-500 uppercase tracking-wider text-[9px] font-bold border-b border-slate-100">
+                      <th className="p-2.5">{language === 'TH' ? 'รายละเอียดเวชภัณฑ์' : 'Medicine Info'}</th>
+                      <th className="p-2.5 text-center">{language === 'TH' ? 'จำนวน' : 'Qty'}</th>
+                      <th className="p-2.5 text-right">{language === 'TH' ? 'รวมสุทธิ' : 'Subtotal'}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-101 text-slate-600 text-[10px]">
+                    {bookedReceipt.medications?.map((item: any, idx: number) => (
+                      <tr key={idx} className="hover:bg-slate-100/30">
+                        <td className="p-2.5">
+                          <div className="font-bold text-slate-800 text-[11px]">{item.drugName}</div>
+                          <div className="text-[8px] text-slate-450 font-bold">{item.stockCode} • {item.priceType ? item.priceType.toUpperCase() : 'General'}</div>
+                        </td>
+                        <td className="p-2.5 text-center font-bold text-slate-700">{item.quantity}</td>
+                        <td className="p-2.5 text-right font-bold text-indigo-950">฿{(item.subtotal || 0).toLocaleString(undefined, { minimumFractionDigits: 1 })}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Total Summary Row */}
+            <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+              <span className="text-[11px] uppercase font-bold text-slate-500">{language === 'TH' ? 'ราคารวมสุทธิค่าเวชภัณฑ์' : 'Grand Total Amount Due'}</span>
+              <span className="text-sm font-black text-rose-600">฿{(bookedReceipt.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 1 })}</span>
+            </div>
+
+            {/* Security and Operator Stamp */}
+            <div className="text-[9px] text-slate-400 border-t border-dashed border-slate-200 pt-3 flex items-center justify-between">
+              <span>{language === 'TH' ? 'ผู้ทำคิวแพทย์:' : 'Booked By:'} <strong className="text-slate-500">{bookedReceipt.staff?.creatorName || bookedReceipt.staff?.creatorId || 'Clinician Staff'}</strong></span>
+              <span className="text-emerald-500 flex items-center gap-1 font-bold">● {language === 'TH' ? 'ประทับตราจองเรียบร้อย' : 'Ledger Verified Signed'}</span>
+            </div>
+          </div>
+
+          {/* Done Action */}
+          <div className="p-5 bg-slate-50 border-t border-slate-100 flex justify-end gap-3.5 print:hidden">
+            <button
+              type="button"
+              onClick={() => {
+                printElementByNewWindow('booking-receipt-printable', 'Medication_Reservation_Ledger_' + bookedReceipt.id);
+              }}
+              className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold uppercase rounded-lg transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              {language === 'TH' ? 'พิมพ์ใบรายการ' : 'Print Receipt'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setBookedReceipt(null);
+                if (onSuccess) onSuccess();
+              }}
+              className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase rounded-lg transition-all shadow-md cursor-pointer hover:shadow-lg animate-pulse"
+            >
+              {language === 'TH' ? 'เสร็จสิ้นการสำรองยา' : 'Close & Proceed'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>
+);
 }

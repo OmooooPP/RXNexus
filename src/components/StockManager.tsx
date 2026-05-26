@@ -11,7 +11,12 @@ export default function StockManager() {
     language,
     createDrug,
     updateDrug,
-    deleteDrug
+    deleteDrug,
+    requestDeleteDrug,
+    rejectDeleteDrug,
+    requestEditDrug,
+    approveEditDrug,
+    rejectEditDrug
   } = useApp();
 
   const t = i18n[language];
@@ -21,6 +26,10 @@ export default function StockManager() {
   // Toggle register new product drawer
   const [showAddForm, setShowAddForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+
+  // Deletion request states
+  const [pendingDeleteDrugId, setPendingDeleteDrugId] = useState<string | null>(null);
+  const [deleteReasonText, setDeleteReasonText] = useState('');
 
   // Form Fields
   const [name, setName] = useState('');
@@ -52,7 +61,7 @@ export default function StockManager() {
     setFormError('');
 
     if (!name.trim() || !stockCode.trim()) {
-      setFormError('Drug Name and SKU Stock Code are mandatory parameters!');
+      setFormError('Drug Name and Stock Code are mandatory parameters!');
       return;
     }
 
@@ -72,7 +81,12 @@ export default function StockManager() {
 
     if (editId) {
       // Editing
-      const res = await updateDrug(editId, payload);
+      let res;
+      if (currentUser?.role === 'Admin') {
+        res = await updateDrug(editId, payload);
+      } else {
+        res = await requestEditDrug(editId, payload);
+      }
       if (res.success) {
         resetForm();
       } else {
@@ -125,6 +139,248 @@ export default function StockManager() {
           </button>
         )}
       </div>
+
+      {/* Admin Deletion Requests Pending Approval Panel */}
+      {currentUser?.role === 'Admin' && drugs.some(d => d.deleteRequested) && (
+        <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-5 space-y-4 animate-fade-in shadow-xs">
+          <div className="flex items-center gap-2 text-amber-800 font-bold text-sm">
+            <ShieldAlert className="w-5 h-5 shrink-0 text-amber-600" />
+            <span className="font-extrabold uppercase tracking-wide">{t.deleteRequestTitle}</span>
+          </div>
+          
+          <div className="space-y-3">
+            {drugs.filter(d => d.deleteRequested).map(drug => (
+              <div key={drug.id} className="bg-white border border-amber-200/80 p-4 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 text-xs shadow-2xs">
+                <div className="space-y-1.5 md:max-w-2xl">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-slate-800 text-sm">{drug.name}</span>
+                    <span className="font-mono text-[9.5px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-semibold">{drug.stockCode}</span>
+                  </div>
+                  <div className="text-slate-600">
+                    <span className="font-semibold text-slate-500 mr-1">{t.deleteReason}:</span>
+                    <span className="text-red-700 font-bold bg-red-50/50 px-2.5 py-0.5 rounded border border-red-100/50">{drug.deleteReason || '-'}</span>
+                  </div>
+                  <div className="text-[10px] text-slate-400 flex items-center gap-2 flex-wrap">
+                    <span>{t.deleteRequestedBy}: <strong className="text-slate-600">{drug.deleteRequestedBy || 'N/A'}</strong></span>
+                    <span>•</span>
+                    <span>{t.deleteDate}: <strong className="text-slate-600">{drug.deleteRequestedAt ? new Date(drug.deleteRequestedAt).toLocaleString() : 'N/A'}</strong></span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (confirm(t.deleteWarning)) {
+                        const res = await deleteDrug(drug.id);
+                        if (!res.success) {
+                          alert(res.error || 'Failed to approve delete');
+                        }
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-[10px] font-bold uppercase rounded-lg transition-colors shadow-xs flex items-center gap-1 cursor-pointer"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    {t.btnApproveDelete}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const res = await rejectDeleteDrug(drug.id);
+                      if (!res.success) {
+                        alert(res.error || 'Failed to reject delete');
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-[10px] font-bold uppercase rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    {t.btnRejectDelete}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Admin Edit Requests Pending Approval Panel */}
+      {currentUser?.role === 'Admin' && drugs.some(d => d.editRequested) && (
+        <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-5 space-y-4 animate-fade-in shadow-xs">
+          <div className="flex items-center gap-2 text-blue-800 font-bold text-sm">
+            <ShieldAlert className="w-5 h-5 shrink-0 text-blue-600" />
+            <span className="font-extrabold uppercase tracking-wide">{t.editRequestTitle}</span>
+          </div>
+          
+          <div className="space-y-3">
+            {drugs.filter(d => d.editRequested).map(drug => {
+              const req = drug.editRequest;
+              if (!req) return null;
+              
+              // Helper to check for difference
+              const nameDiff = drug.name !== req.name;
+              const typeDiff = drug.type !== req.type;
+              const empDiff = drug.prices.employee !== req.prices.employee;
+              const opdDiff = drug.prices.opd !== req.prices.opd;
+              const ipdDiff = drug.prices.ipd !== req.prices.ipd;
+              const itDiff = drug.prices.it !== req.prices.it;
+
+              return (
+                <div key={drug.id} className="bg-white border border-blue-200/80 p-4 rounded-xl flex flex-col gap-4 text-xs shadow-2xs">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-slate-800 text-sm">{drug.name}</span>
+                        <span className="font-mono text-[9.5px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-semibold">{drug.stockCode}</span>
+                      </div>
+                      <div className="text-[10px] text-slate-400 flex items-center gap-2 flex-wrap">
+                        <span>{t.editRequestedBy}: <strong className="text-slate-600">{drug.editRequestedBy || 'N/A'}</strong></span>
+                        <span>•</span>
+                        <span>{language === 'TH' ? 'ขอเสนอแก้วันที่' : 'Requested at'}: <strong className="text-slate-600">{drug.editRequestedAt ? new Date(drug.editRequestedAt).toLocaleString() : 'N/A'}</strong></span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const res = await approveEditDrug(drug.id);
+                          if (!res.success) {
+                            alert(res.error || 'Failed to approve edit');
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold uppercase rounded-lg transition-colors shadow-xs flex items-center gap-1 cursor-pointer font-sans"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        {t.btnApproveEdit}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const res = await rejectEditDrug(drug.id);
+                          if (!res.success) {
+                            alert(res.error || 'Failed to reject edit');
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-[10px] font-bold uppercase rounded-lg transition-colors cursor-pointer flex items-center gap-1 font-sans"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        {t.btnRejectEdit}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Proposed Changes Comparison Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs font-medium">
+                    <div className="md:col-span-2 space-y-2 bg-slate-50/50 p-3 rounded-lg border border-slate-100">
+                      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Drug Identity</div>
+                      <div className="grid grid-cols-2 gap-2 text-[11px]">
+                        <div>
+                          <span className="text-slate-400 block text-[9px]">Name</span>
+                          <span className="text-slate-500 line-through block">{drug.name}</span>
+                          <span className={`block font-bold ${nameDiff ? 'text-blue-700 font-extrabold' : 'text-slate-700'}`}>{req.name}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[9px]">Classification</span>
+                          <span className="text-slate-400 line-through block">{drug.type}</span>
+                          <span className={`block font-bold ${typeDiff ? 'text-blue-700 font-extrabold' : 'text-slate-700'}`}>{req.type}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-2 space-y-2 bg-slate-50/50 p-3 rounded-lg border border-slate-100">
+                      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Pricing Matrix Comparison (Bath - ฿)</div>
+                      <div className="grid grid-cols-4 gap-1.5 text-[10px] font-mono text-center">
+                        <div className="p-1 rounded bg-white">
+                          <span className="text-slate-400 block text-[8px] font-sans truncate">Employee</span>
+                          <span className="text-slate-400 line-through block font-medium">฿{drug.prices.employee}</span>
+                          <span className={`block font-bold ${empDiff ? 'text-blue-700 font-extrabold' : 'text-slate-700'}`}>฿{req.prices.employee}</span>
+                        </div>
+                        <div className="p-1 rounded bg-white">
+                          <span className="text-slate-400 block text-[8px] font-sans truncate">OPD</span>
+                          <span className="text-slate-400 line-through block font-medium">฿{drug.prices.opd}</span>
+                          <span className={`block font-bold ${opdDiff ? 'text-blue-700 font-extrabold' : 'text-slate-700'}`}>฿{req.prices.opd}</span>
+                        </div>
+                        <div className="p-1 rounded bg-white">
+                          <span className="text-slate-400 block text-[8px] font-sans truncate">IPD</span>
+                          <span className="text-slate-400 line-through block font-medium">฿{drug.prices.ipd}</span>
+                          <span className={`block font-bold ${ipdDiff ? 'text-blue-700 font-extrabold' : 'text-slate-700'}`}>฿{req.prices.ipd}</span>
+                        </div>
+                        <div className="p-1 rounded bg-white pb-1">
+                          <span className="text-slate-400 block text-[8px] font-sans truncate text-blue-800 font-semibold font-sans">IT RATE</span>
+                          <span className="text-slate-400 line-through block font-medium">฿{drug.prices.it}</span>
+                          <span className={`block font-bold ${itDiff ? 'text-blue-700 font-extrabold' : 'text-slate-700'}`}>฿{req.prices.it}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Delete Reason Prompt Dialog Modal */}
+      {pendingDeleteDrugId && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full border border-slate-200 shadow-xl space-y-4 animate-fade-in">
+            <div className="flex items-center gap-2 text-amber-600 font-bold text-sm">
+              <ShieldAlert className="w-5 h-5 shrink-0" />
+              <span>{language === 'TH' ? 'ระบุเหตุผลการดำเนินการขอลบยา' : 'Deletion Authorization Request'}</span>
+            </div>
+            
+            <p className="text-xs text-slate-500 leading-relaxed">
+              {t.deleteWarning}
+            </p>
+
+            <div className="space-y-1">
+              <label className="block text-xs font-semibold text-slate-600">
+                {t.deleteReason} *
+              </label>
+              <textarea
+                required
+                rows={3}
+                value={deleteReasonText}
+                onChange={(e) => setDeleteReasonText(e.target.value)}
+                placeholder={language === 'TH' ? 'ระบุสาเหตุที่ต้องการลบ เช่น ลิสต์ผิดหมวดหมู่, ยายกเลิกเบิกจ่าย...' : 'Specify why this medicine should be removed...'}
+                className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-xs font-medium focus:outline-hidden focus:border-red-500 focus:bg-white"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingDeleteDrugId(null);
+                  setDeleteReasonText('');
+                }}
+                className="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold hover:bg-slate-200 transition-colors cursor-pointer"
+              >
+                {t.cancel}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!deleteReasonText.trim()) {
+                    alert(t.deleteReasonRequired);
+                    return;
+                  }
+                  const res = await requestDeleteDrug(pendingDeleteDrugId, deleteReasonText.trim());
+                  if (res.success) {
+                    setPendingDeleteDrugId(null);
+                    setDeleteReasonText('');
+                  } else {
+                    alert(res.error || 'Failed to submit request');
+                  }
+                }}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold uppercase transition-all shadow-xs cursor-pointer"
+              >
+                {language === 'TH' ? 'ส่งคำขอลบยาสำเร็จ' : 'Send Deletion Request'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Form Overlay Drawer */}
       {showAddForm && (
@@ -179,10 +435,9 @@ export default function StockManager() {
                   value={type}
                   onChange={(e) => setType(e.target.value as 'General' | 'Oncology')}
                   className="w-full bg-white border border-neutral-200 px-3 py-2 rounded-xl focus:outline-hidden"
-                  disabled={!!editId}
                 >
-                  <option value="General">General Category (Blue)</option>
-                  <option value="Oncology">Oncology Category (Red)</option>
+                  <option value="General">General Category</option>
+                  <option value="Oncology">Oncology Category</option>
                 </select>
               </div>
             </div>
@@ -256,7 +511,7 @@ export default function StockManager() {
             </div>
 
             {formError && (
-              <p className="text-red-500 font-bold bg-white text-[11px] p-2 rounded-lg border border-red-100">
+              <p className="text-red-500 font-bold bg-white text-[11px] p-2 rounded-lg border border-red-100 block">
                 ⚠️ {formError}
               </p>
             )}
@@ -286,13 +541,13 @@ export default function StockManager() {
         <table className="w-full text-left text-xs border-collapse">
           <thead>
             <tr className="bg-slate-50 text-slate-500 uppercase tracking-wider text-[10px] font-bold border-b border-slate-200">
-              <th className="p-4">Scientific Name</th>
+              <th className="p-4">DRUG NAME</th>
               <th className="p-4">Classification</th>
-              <th className="p-4">SKU / Stock ID</th>
+              <th className="p-4">Stock Code</th>
               <th className="p-4 text-center">Employee Rate</th>
               <th className="p-4 text-center">OPD Rate</th>
               <th className="p-4 text-center">IPD Rate</th>
-              <th className="p-4 text-center">IT Special Case</th>
+              <th className="p-4 text-center">IT RATE</th>
               {isPharmacistOrAdmin && <th className="p-4 text-center">Actions</th>}
             </tr>
           </thead>
@@ -300,8 +555,22 @@ export default function StockManager() {
             {drugs.map((drug) => (
               <tr key={drug.id} className="hover:bg-neutral-50/40 transition-colors">
                 <td className="p-4">
-                  <span className="font-bold text-neutral-800 text-xs sm:text-sm block">{drug.name}</span>
-                  <span className="text-[10px] text-neutral-400 select-all">{drug.id}</span>
+                  <div className="flex items-center gap-2">
+                    <div>
+                      <span className="font-bold text-neutral-800 text-xs sm:text-sm block">{drug.name}</span>
+                      <span className="text-[10px] text-neutral-400 select-all">{drug.id}</span>
+                    </div>
+                    {drug.deleteRequested && (
+                      <span className="text-[9px] font-extrabold uppercase bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded tracking-wide animate-pulse">
+                        {language === 'TH' ? 'รออนุมัติลบ' : 'Pending Delete'}
+                      </span>
+                    )}
+                    {drug.editRequested && (
+                      <span className="text-[9px] font-extrabold uppercase bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded tracking-wide animate-pulse">
+                        {language === 'TH' ? 'รออนุมัติแก้ไข' : 'Pending Edit'}
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="p-4">
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
@@ -323,23 +592,41 @@ export default function StockManager() {
                     <div className="flex gap-2 justify-center items-center">
                       <button
                         type="button"
-                        onClick={() => startEdit(drug)}
-                        className="p-1 px-2.5 hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-900 rounded transition-all flex items-center gap-1 cursor-pointer font-bold uppercase"
-                        title="Edit pricing catalog matrix"
+                        onClick={() => !(drug.deleteRequested || drug.editRequested) && startEdit(drug)}
+                        disabled={!!drug.deleteRequested || !!drug.editRequested}
+                        className={`p-1 px-2.5 border rounded transition-all flex items-center gap-1 uppercase ${
+                          drug.deleteRequested || drug.editRequested
+                            ? 'bg-slate-50 border-slate-200 text-slate-300 cursor-not-allowed'
+                            : 'hover:bg-slate-100 border-slate-200 text-slate-600 hover:text-slate-900 cursor-pointer font-bold'
+                        }`}
+                        title={drug.deleteRequested || drug.editRequested ? "Pending Approval" : "Edit pricing catalog matrix"}
                       >
                         <Edit2 className="w-3 h-3" />
                         <span className="text-[9px] tracking-wider">Edit</span>
                       </button>
-
+ 
                       <button
                         type="button"
-                        onClick={() => {
-                          if (confirm(t.deleteWarning)) {
-                            deleteDrug(drug.id);
+                        onClick={async () => {
+                          if (currentUser?.role === 'Admin') {
+                            if (confirm(t.deleteWarning)) {
+                              const res = await deleteDrug(drug.id);
+                              if (!res.success) {
+                                alert(res.error || 'Failed to delete');
+                              }
+                            }
+                          } else {
+                            setPendingDeleteDrugId(drug.id);
+                            setDeleteReasonText('');
                           }
                         }}
-                        className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors cursor-pointer"
-                        title="Delete product item"
+                        disabled={!!drug.deleteRequested || !!drug.editRequested}
+                        className={`p-1 rounded transition-colors ${
+                          drug.deleteRequested || drug.editRequested
+                            ? 'text-slate-300 cursor-not-allowed'
+                            : 'text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer'
+                        }`}
+                        title={drug.deleteRequested || drug.editRequested ? "Pending Approval" : "Delete product item"}
                       >
                         <Trash className="w-3.5 h-3.5" />
                       </button>

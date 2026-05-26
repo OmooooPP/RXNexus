@@ -39,6 +39,7 @@ export default function UserAdminManager() {
 
   // Edit Staff Modal dialog state
   const [editingStaff, setEditingStaff] = useState<User | null>(null);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [editName, setEditName] = useState('');
   const [editPassword, setEditPassword] = useState('');
   const [editRoles, setEditRoles] = useState<UserRole[]>([]);
@@ -129,6 +130,13 @@ export default function UserAdminManager() {
     const currentRoles = staff.roles && staff.roles.length > 0 ? staff.roles : [staff.role];
     setEditRoles(currentRoles);
     setEditErrorMsg('');
+  };
+
+  const handleApproveUser = async (staff: User) => {
+    const res = await updateUser(staff.id, { approved: true });
+    if (!res.success) {
+      alert(res.error || 'Failed to approve registration template credentials');
+    }
   };
 
   const handleSaveEdit = async (e: React.FormEvent) => {
@@ -328,6 +336,11 @@ export default function UserAdminManager() {
                   <tr key={staff.id} className="hover:bg-slate-50/40 transition-colors">
                     <td className="p-4 font-bold text-slate-800 text-xs sm:text-sm">
                       {staff.name}
+                      {staff.approved === false && (
+                        <span className="ml-2 inline-flex items-center gap-1 text-[9px] bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded font-mono font-bold uppercase tracking-wider animate-pulse">
+                          Pending Approval
+                        </span>
+                      )}
                       {staff.id === '585982' && (
                         <span className="ml-2 text-[9px] bg-red-50 text-red-600 border border-red-100 px-2 py-0.5 rounded font-mono font-bold uppercase tracking-wider">
                           Root Admin
@@ -362,6 +375,16 @@ export default function UserAdminManager() {
                         <span className="text-[10px] text-slate-300 font-mono italic">Protected</span>
                       ) : (
                         <div className="flex gap-2 justify-center items-center">
+                          {staff.approved === false && (
+                            <button
+                              type="button"
+                              onClick={() => handleApproveUser(staff)}
+                              className="px-2.5 py-1 text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-md transition-all cursor-pointer uppercase flex items-center gap-1 hover:border-emerald-400 shrink-0"
+                            >
+                              <Check className="w-3 h-3" />
+                              Approve
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => handleOpenEdit(staff)}
@@ -372,11 +395,7 @@ export default function UserAdminManager() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => {
-                              if (confirm(`Are you sure you want to permanently delete staff member ${staff.name}?`)) {
-                                deleteUser(staff.id);
-                              }
-                            }}
+                            onClick={() => setUserToDelete(staff)}
                             className="px-2.5 py-1 text-[10px] font-bold text-red-600 border border-red-100 hover:bg-red-50 rounded-md transition-all cursor-pointer uppercase flex items-center gap-1 hover:border-red-300"
                           >
                             <Trash2 className="w-2.5 h-2.5" />
@@ -496,6 +515,97 @@ export default function UserAdminManager() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Staff Deletion Confirmation Tab Modal Dialogue */}
+      {userToDelete && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4 transition-all animate-fade-in">
+          <div className="bg-white rounded-2xl border border-rose-100 shadow-2xl max-w-md w-full flex flex-col overflow-hidden leading-relaxed text-slate-700">
+            {/* Header */}
+            <div className="p-5 bg-rose-50 border-b border-rose-100 flex items-center justify-between text-rose-800">
+              <div className="flex items-center gap-2">
+                <Shield className="w-5 h-5 text-rose-600 shrink-0" />
+                <h3 className="font-extrabold text-xs uppercase tracking-wider">
+                  {language === 'TH' ? 'หน้าต่างยืนยันการถอดถอนผู้ใช้ระบบ' : 'Confirm Security Access Revocation'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setUserToDelete(null)}
+                className="text-rose-450 hover:text-rose-600 font-mono text-sm hover:bg-rose-100/50 px-2 py-1 rounded-md cursor-pointer font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-4 text-xs font-sans">
+              <div className="bg-rose-50/50 border border-rose-100/50 rounded-xl p-4 space-y-2">
+                <div className="text-[10px] text-rose-505 text-rose-500 font-black uppercase tracking-wider">
+                  {language === 'TH' ? 'พนักงานที่ได้รับผลกระทบ' : 'Affected Staff Member Profile'}
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[11px] border-b border-rose-100/30 pb-2">
+                  <div>
+                    <span className="text-slate-400 block text-[9px]">{language === 'TH' ? 'ชื่อเครื่องหลัก' : 'Username / Key'}</span>
+                    <strong className="text-slate-800 font-mono text-[12px]">{userToDelete.username}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[9px]">{language === 'TH' ? 'ชื่อ-นามสกุล บุคลากร' : 'Staff Member Name'}</span>
+                    <strong className="text-slate-800 text-[12px]">{userToDelete.name}</strong>
+                  </div>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[9px] mb-1">{language === 'TH' ? 'ระดับสิทธิ์เข้าถึงทั้งหมด' : 'Assigned System Roles'}</span>
+                  <div className="flex flex-wrap gap-1">
+                    {(userToDelete.roles && userToDelete.roles.length > 0 ? userToDelete.roles : [userToDelete.role]).map((r) => (
+                      <span key={r} className="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase bg-rose-100/60 text-rose-800 border border-rose-200/50">
+                        {r}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-slate-500 space-y-2 leading-relaxed">
+                <p className="font-semibold text-rose-700">
+                  {language === 'TH' 
+                    ? '⚠️ คำเตือน: การกระทำนี้ไม่สามารถย้อนกลับได้!' 
+                    : '⚠️ Warning: This action is permanent and irreversible!'}
+                </p>
+                <p>
+                  {language === 'TH'
+                    ? 'บัญชีผู้ใช้นี้จะได้รับการถอดถอนออกจากระบบจัดซื้อและบริหารยา RxNexus ในทันที คีย์ ID สิทธิ์การเข้าถึงทั้งหมดจะถูกล้างออกจากระบบหลัก'
+                    : 'All database permissions and credentials associated with this security account will be permanently deprovisioned and expunged from RxNexus registry.'}
+                </p>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="p-5 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setUserToDelete(null)}
+                className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-bold uppercase transition-all cursor-pointer"
+              >
+                {language === 'TH' ? 'ยกเลิก' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const res = await deleteUser(userToDelete.id);
+                  if (res.success) {
+                    setUserToDelete(null);
+                  } else {
+                    alert(res.error || 'Failed to revoke permissions');
+                  }
+                }}
+                className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold uppercase transition-all shadow-md cursor-pointer hover:shadow-lg"
+              >
+                {language === 'TH' ? 'ยืนยันลบอย่างถาวร' : 'Confirm Perm Delete'}
+              </button>
+            </div>
           </div>
         </div>
       )}

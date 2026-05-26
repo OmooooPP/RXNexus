@@ -94,6 +94,25 @@
         "details": { "type": "string" }
       },
       "required": ["id", "timestamp", "userId", "userName", "userRole", "action", "details"]
+    },
+    "OwingMedication": {
+      "title": "OwingMedication",
+      "description": "Ledger of medications currently owing or not ready for specific patient booking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique owing tracking reference" },
+        "bookingId": { "type": "string", "description": "Reference to the source Booking" },
+        "patientName": { "type": "string" },
+        "hn": { "type": "string" },
+        "medications": {
+          "type": "array",
+          "description": "List of drugs and preparation status"
+        },
+        "reportedBy": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "resolved": { "type": "boolean" }
+      },
+      "required": ["id", "bookingId", "patientName", "hn", "medications", "reportedBy", "createdAt", "resolved"]
     }
   },
   "firestore": {
@@ -112,6 +131,10 @@
     "logs": {
       "schema": { "$ref": "#/entities/SystemLog" },
       "description": "Operation audit logs for compliance tracker"
+    },
+    "owing_meds": {
+      "schema": { "$ref": "#/entities/OwingMedication" },
+      "description": "Log of outstanding or owing medications yet to be prepared by stock vault clerks"
     }
   }
 }

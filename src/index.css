@@ -2,8 +2,15 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Sarabun", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", "Sarabun", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Adjust application display layout size to be slightly larger (100% -> 110%) on screen displays */
+@media screen {
+  #root {
+    zoom: 1.10;
+  }
 }
 
 /* Custom CSS Scrollbars */
@@ -21,32 +28,51 @@
 
 /* Print CSS Configurations for flawless PDF and Slip Voucher generation */
 @media print {
-  /* Hide absolutely everything in the document body... */
-  body * {
-    visibility: hidden !important;
+  /* Set all unnecessary UI elements, navigation bars, sidebars, and backgrounds to display: none */
+  header, 
+  aside,
+  nav,
+  button,
+  .print\:hidden,
+  .print-hidden,
+  .print-hidden-element,
+  #owing-medication-clerk-urgent-banner,
+  .print-overlay-wrapper > div:not(#printable-area) {
+    display: none !important;
+  }
+
+  /* Reset layout of all parent containers so they do not restrict height or overflow during print */
+  html, body, #root, #root *, div, main, section {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    position: static !important;
+    background-color: transparent !important;
+    background-image: none !important;
   }
   
-  /* ...EXCEPT our specifically designated printable container and its children! */
-  #printable-area, #printable-area * {
-    visibility: visible !important;
-  }
-  
-  /* Position the printable area elegantly at the top-left of the page canvas */
+  /* Ensure the main Requisition Supply Bill container is visible, takes up 100% width, 
+     and is positioned perfectly at the top-left of the page so it prints cleanly like a standard document */
   #printable-area {
+    display: block !important;
+    visibility: visible !important;
     position: absolute !important;
     left: 0 !important;
     top: 0 !important;
     width: 100% !important;
+    max-width: 100% !important;
     margin: 0 !important;
-    padding: 0 !important;
+    padding: 1.2cm !important;
     border: none !important;
     box-shadow: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
   }
 
   body {
-    background-color: white !important;
+    background-color: #ffffff !important;
     background-image: none !important;
-    color: black !important;
+    color: #000000 !important;
     font-size: 11pt !important;
   }
 

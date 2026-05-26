@@ -7,9 +7,10 @@ import QueueCalendar from './components/QueueCalendar';
 import StockManager from './components/StockManager';
 import UserAdminManager from './components/UserAdminManager';
 import ReportPrinter from './components/ReportPrinter';
+import OwingMedPanel from './components/OwingMedPanel';
 import LoadingSpinner from './components/LoadingSpinner';
 import BHPLogo from './components/BHPLogo';
-import { Booking } from './types';
+import { Booking, UserRole } from './types';
 import {
   Activity,
   Calendar,
@@ -25,7 +26,8 @@ import {
   Shield,
   HelpCircle,
   PlusCircle,
-  Clock
+  Clock,
+  AlertCircle
 } from 'lucide-react';
 
 function DashboardLayout() {
@@ -36,13 +38,41 @@ function DashboardLayout() {
     setLanguage,
     logout,
     loading,
-    clearAlerts
+    clearAlerts,
+    bookings,
+    owingMeds,
+    users,
+    fetchUsers
   } = useApp();
+
+  useEffect(() => {
+    if (currentUser?.role === 'Admin') {
+      fetchUsers();
+    }
+  }, [currentUser]);
+
+  const formatDateToDMY = (dateStr: string): string => {
+    if (!dateStr) return '';
+    if (dateStr.includes('-') && dateStr.split('-')[0].length === 2) {
+      return dateStr;
+    }
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const [year, month, day] = parts;
+      return `${day}-${month}-${year}`;
+    }
+    return dateStr;
+  };
 
   const t = i18n[language];
 
+  // Calculate unprepared upcoming bookings for Stock Clerk / Admin notification triggers
+  const todayStr = new Date().toISOString().split('T')[0];
+
   // Active UI Navigation Tab State
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'booking' | 'calendar' | 'stocks' | 'users' | 'reports' | 'logs'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'booking' | 'calendar' | 'stocks' | 'users' | 'reports' | 'logs' | 'owing'>('dashboard');
+
+  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
 
   // Booking parameter state for Editing sequence
   const [editingBookingId, setEditingBookingId] = useState<string | undefined>(undefined);
@@ -51,6 +81,14 @@ function DashboardLayout() {
 
   // Helper toggle for system alert drawer dropdown
   const [showAlertMenu, setShowAlertMenu] = useState(false);
+
+  const handleAlertClick = (al: any) => {
+    if (al.hn) {
+      setGlobalSearchQuery(al.hn);
+      setActiveTab('dashboard');
+      setShowAlertMenu(false);
+    }
+  };
 
   // Handle edit reservation sequence
   const triggerEdit = (id: string) => {
@@ -61,7 +99,6 @@ function DashboardLayout() {
   // Handle print slip sequence
   const triggerPrintSingle = (booking: Booking) => {
     setPrintingBooking(booking);
-    setActiveTab('reports');
   };
 
   // Safe reset when tab switches
@@ -80,28 +117,28 @@ function DashboardLayout() {
       {loading && <LoadingSpinner />}
 
       {/* Main App Navigation Header */}
-      <header className="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-sm px-6 py-3.5 flex items-center justify-between">
+      <header className="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-sm px-3 md:px-6 py-2 md:py-3.5 flex items-center justify-between print:hidden">
         {/* Brand identity */}
-        <div className="flex items-center gap-4">
-          <BHPLogo className="h-9" />
-          <div className="h-7 w-px bg-slate-200"></div>
+        <div className="flex items-center gap-2 md:gap-4">
+          <BHPLogo className="h-9 hidden md:block" />
+          <div className="h-7 w-px bg-slate-200 hidden md:block"></div>
           <div>
-            <h1 className="text-base font-black tracking-tight text-blue-900 leading-none">
+            <h1 className="text-sm md:text-base font-black tracking-tight text-blue-900 leading-none">
               {t.appName}
             </h1>
-            <span className="text-[9px] text-slate-400 font-bold tracking-wider uppercase block mt-1">
+            <span className="text-[8px] md:text-[9px] text-slate-400 font-bold tracking-wider uppercase block mt-0.5 md:mt-1">
               {language === 'TH' ? 'ระบบจองและสำรองยา' : 'Medication Reservation'}
             </span>
           </div>
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4">
           {/* Dual language picker */}
-          <div className="flex bg-slate-50 p-1 rounded-lg border border-slate-200">
+          <div className="flex bg-slate-50 p-0.5 md:p-1 rounded-lg border border-slate-200 shrink-0">
             <button
               onClick={() => setLanguage('TH')}
-              className={`px-3 py-1 text-xs font-semibold rounded transition-all ${
+              className={`px-2 py-0.5 md:px-3 md:py-1 text-[10px] md:text-xs font-semibold rounded transition-all ${
                 language === 'TH' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-400 font-medium hover:text-slate-700'
               }`}
             >
@@ -109,7 +146,7 @@ function DashboardLayout() {
             </button>
             <button
               onClick={() => setLanguage('EN')}
-              className={`px-3 py-1 text-xs font-semibold rounded transition-all ${
+              className={`px-2 py-0.5 md:px-3 md:py-1 text-[10px] md:text-xs font-semibold rounded transition-all ${
                 language === 'EN' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-400 font-medium hover:text-slate-700'
               }`}
             >
@@ -118,54 +155,75 @@ function DashboardLayout() {
           </div>
 
           {/* Alarm Notification Bells bell dropdown list */}
-          <div className="relative">
-            <button
-              onClick={() => setShowAlertMenu(!showAlertMenu)}
-              className="p-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-500 hover:text-slate-800 rounded-full transition-all relative cursor-pointer"
-            >
-              <Bell className="w-4 h-4" />
-              {alerts.length > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center text-[9px] font-bold font-mono">
-                  {alerts.length}
-                </span>
-              )}
-            </button>
+          {(activeTab === 'owing' && currentUser?.role === 'Pharmacist') && (
+            <div className="relative shrink-0">
+              <button
+                onClick={() => setShowAlertMenu(!showAlertMenu)}
+                className="p-1.5 md:p-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-500 hover:text-slate-800 rounded-full transition-all relative cursor-pointer"
+              >
+                <Bell className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                {alerts.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center text-[9px] font-bold font-mono">
+                    {alerts.length}
+                  </span>
+                )}
+              </button>
 
-            {showAlertMenu && (
-              <div className="absolute right-0 mt-2.5 w-80 bg-white rounded-2xl border border-slate-200 shadow-2xl z-50 overflow-hidden py-1">
-                <div className="p-3 bg-slate-50 border-b border-slate-200/60 flex justify-between items-center text-xs">
-                  <span className="font-bold text-slate-700">Real-time alerts ({alerts.length})</span>
-                  {alerts.length > 0 && (
-                    <button
-                      onClick={clearAlerts}
-                      className="text-[10px] text-red-500 hover:underline cursor-pointer"
-                    >
-                      Clear
-                    </button>
-                  )}
+              {showAlertMenu && (
+                <div className="absolute right-0 mt-2 w-64 md:w-80 bg-white rounded-2xl border border-slate-200 shadow-2xl z-50 overflow-hidden py-1">
+                  <div className="p-3 bg-slate-50 border-b border-slate-200/60 flex justify-between items-center text-xs">
+                    <span className="font-bold text-slate-700">Real-time alerts ({alerts.length})</span>
+                    {alerts.length > 0 && (
+                      <button
+                        onClick={clearAlerts}
+                        className="text-[10px] text-red-500 hover:underline cursor-pointer"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 text-[11px] text-slate-600">
+                    {alerts.length === 0 ? (
+                      <p className="p-4 text-center text-slate-400">All channels clear. No active alerts.</p>
+                    ) : (
+                      alerts.map((al) => (
+                        <div
+                          key={al.id}
+                          onClick={() => handleAlertClick(al)}
+                          className={`p-3 space-y-1 transition-all duration-150 ${
+                            al.hn
+                              ? 'hover:bg-blue-50/55 cursor-pointer hover:text-blue-800'
+                              : 'hover:bg-slate-50'
+                          }`}
+                          title={al.hn ? `Click to inspect HN: ${al.hn}` : undefined}
+                        >
+                          <p className="font-medium text-slate-800 flex items-start gap-1">
+                            {al.hn && <span className="text-xs shrink-0 select-none">🔍</span>}
+                            <span>{al.message}</span>
+                          </p>
+                          <div className="flex justify-between items-center text-[9px] text-slate-400 font-mono tracking-tight gap-1.5 flex-wrap">
+                            <span>{al.timestamp}</span>
+                            {al.hn && (
+                              <span className="text-[8.5px] text-blue-600 bg-blue-50 font-sans font-bold px-1.5 py-0.2 rounded border border-blue-100 uppercase tracking-wider block">
+                                Link: {al.hn}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
-                <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 text-[11px] text-slate-600">
-                  {alerts.length === 0 ? (
-                    <p className="p-4 text-center text-slate-400">All channels clear. No active alerts.</p>
-                  ) : (
-                    alerts.map((al) => (
-                      <div key={al.id} className="p-3 space-y-1 hover:bg-slate-50 transition-colors">
-                        <p className="font-medium text-slate-800">{al.message}</p>
-                        <p className="text-[9px] text-slate-400 font-mono tracking-tight">{al.timestamp}</p>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           {/* User Signin profile chip */}
-          <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-600">
-            <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center text-white text-xs font-bold shadow-xs">
+          <div className="flex items-center gap-2 md:gap-3 bg-slate-50 border border-slate-200 rounded-lg md:rounded-xl p-1 md:px-3 md:py-1.5 text-xs text-slate-600 shrink-0">
+            <div className="w-6 h-6 md:w-7 md:h-7 bg-blue-600 rounded-md md:rounded-lg flex items-center justify-center text-white text-[10px] md:text-xs font-bold shadow-xs">
               {currentUser?.name[0]}
             </div>
-            <div className="hidden sm:block text-left font-sans">
+            <div className="hidden md:block text-left font-sans">
               <p className="font-bold text-slate-800 text-xs">{currentUser?.name}</p>
               <span className="text-[10px] text-slate-500 uppercase font-mono">{currentUser?.role}</span>
             </div>
@@ -174,18 +232,18 @@ function DashboardLayout() {
           {/* Logout anchor */}
           <button
             onClick={logout}
-            className="p-2.5 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200/40 rounded-xl transition-all cursor-pointer"
+            className="p-1.5 md:p-2.5 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200/40 rounded-lg md:rounded-xl transition-all cursor-pointer shrink-0"
             title={t.logout}
           >
-            <LogOut className="w-4 h-4 shrink-0" />
+            <LogOut className="w-3.5 h-3.5 md:w-4 md:h-4 shrink-0" />
           </button>
         </div>
       </header>
 
       {/* Grid structure main content body layout */}
-      <div className="flex-1 flex flex-col md:flex-row">
-        {/* Sidebar Navigation Drawer */}
-        <aside className="w-full md:w-64 bg-white border-r border-slate-200 flex flex-col py-6 justify-between print:hidden">
+      <div className="flex-1 flex flex-col md:flex-row pb-[calc(64px+env(safe-area-inset-bottom))] md:pb-0">
+        {/* Sidebar Navigation Drawer (Desktop) */}
+        <aside className="hidden md:flex w-64 bg-white border-r border-slate-200 flex-col py-6 justify-between print:hidden shrink-0">
           <div className="space-y-4 px-4">
             <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400 px-3">
               Navigation Menu ({currentUser?.role})
@@ -252,6 +310,30 @@ function DashboardLayout() {
                 {t.reportsTitle}
               </button>
 
+              {(currentUser?.role === 'Pharmacist' ||
+                currentUser?.role === 'Pharmacist Assistant' ||
+                currentUser?.role === 'Pharmacy Stock Clerk' ||
+                currentUser?.role === 'Admin') && (
+                <button
+                  onClick={() => setActiveTab('owing')}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+                    activeTab === 'owing'
+                      ? 'bg-rose-50 text-rose-700 border border-rose-100/30'
+                      : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <AlertCircle className="w-4 h-4 shrink-0 font-bold" />
+                    <span>{language === 'TH' ? 'รายการยาค้างส่ง' : 'Owings List'}</span>
+                  </div>
+                  {owingMeds.filter(om => !om.resolved).length > 0 && (
+                    <span className="bg-red-500 text-white text-[10px] font-black font-mono px-1.5 py-0.5 rounded-full animate-pulse">
+                      {owingMeds.filter(om => !om.resolved).length}
+                    </span>
+                  )}
+                </button>
+              )}
+
               {/* Admin clearance links */}
               {currentUser?.role === 'Admin' && (
                 <>
@@ -304,17 +386,86 @@ function DashboardLayout() {
         </aside>
 
         {/* Modular Render Block Main view */}
-        <main className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full space-y-6">
+        <main className="flex-1 p-4 md:p-6 lg:max-w-[1280px] xl:max-w-[1440px] mx-auto w-full max-w-full overflow-x-hidden space-y-4 md:space-y-6">
+          {/* Clerk Actionable Unresolved Owings Banner */}
+          {currentUser?.role === 'Pharmacy Stock Clerk' && owingMeds.some(om => !om.resolved) && (
+            <div 
+              id="clerk-unresolved-owings-banner"
+              onClick={() => setActiveTab('owing')}
+              className="bg-gradient-to-r from-amber-600 to-rose-600 border border-amber-500 rounded-2xl p-4 text-white shadow-lg cursor-pointer hover:shadow-xl transition-all relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-4 select-none animate-pulse print:hidden"
+            >
+              <div className="flex items-start gap-3.5">
+                <div className="text-2xl p-2 bg-white/20 rounded-xl shrink-0">
+                  ⚠️
+                </div>
+                <div>
+                  <h3 className="text-sm font-black tracking-wide uppercase">
+                    {language === 'TH' ? 'ด่วนที่สุด: มียาเวชภัณฑ์ค้างส่งในคลัง!' : 'URGENT: RESOLVE OWING MEDS IN STOCK'}
+                  </h3>
+                  <p className="text-xs text-amber-50 mt-1 font-semibold">
+                    {language === 'TH'
+                      ? `มีรายการค้างส่งยาค้างจ่ายของคนไข้ค้างจ่ายอยู่ ${owingMeds.filter(om => !om.resolved).length} รายการ กรุณานำส่งหรือกดตัดยอดเตรียมสต็อกด่วน`
+                      : `Found ${owingMeds.filter(om => !om.resolved).length} active owing items waiting for dispatch prep. Click here to open the Owings Sourcing Desk.`}
+                  </p>
+                </div>
+              </div>
+              <button
+                className="bg-white hover:bg-slate-100 text-amber-700 hover:text-rose-700 text-[10px] font-black uppercase tracking-wider py-2 px-3.5 rounded-xl shrink-0 transition-colors shadow-sm cursor-pointer"
+              >
+                {language === 'TH' ? 'เปิดศูนย์ค้างส่งยา' : 'OPERATE OWING DESK'}
+              </button>
+            </div>
+          )}
+
+          {/* Admin Pending Registration Alert Banner */}
+          {currentUser?.role === 'Admin' && users.some(u => u.approved === false) && (
+            <div 
+              id="pending-users-alert-banner"
+              onClick={() => setActiveTab('users')}
+              className="bg-gradient-to-r from-blue-700 via-indigo-700 to-violet-700 border-2 border-indigo-500 rounded-2xl p-5 shadow-2xl text-white space-y-3 cursor-pointer hover:shadow-xs transition-all animate-pulse relative overflow-hidden print:hidden"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-8 -mt-8 animate-pulse"></div>
+              
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-white/20 rounded-xl shrink-0 text-xl font-bold">
+                  👤
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-black tracking-wide uppercase flex items-center gap-2">
+                    {language === 'TH' ? 'แจ้งเตือน: มีการสมัครสมาชิกใหม่ค้างอนุมัติ!' : 'ALERT: PENDING STAFF REGISTRATIONS REQUIRING APPROVAL'}
+                  </h3>
+                  <p className="text-xs text-indigo-100 leading-relaxed mt-1 font-semibold">
+                    {language === 'TH'
+                      ? `พบพนักงานค้างอนุมัติในระบบจำนวน ${users.filter(u => u.approved === false).length} บัญชี กรุณาคลิกที่นี่เพื่อดำเนินการตรวจสอบและกดอนุมัติสิทธิ์การเข้าใช้งาน`
+                      : `Found ${users.filter(u => u.approved === false).length} staff registrations pending verification clearance. Click here to open user catalog and authorize them.`}
+                  </p>
+                  <p className="text-[10px] text-blue-200 mt-1 font-mono font-bold hover:underline">
+                    ➡️ {language === 'TH' ? 'คลิกเพื่อตัดไปยังหน้าการอนุมัติผู้ใช้หน้าอนุมัติทันที' : 'CLICK HERE TO CUT DIRECTLY TO APPROVAL CONTROL'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'dashboard' && (
             <DataTable
               onEditClick={triggerEdit}
               onPrintClick={triggerPrintSingle}
+              initialSearchQuery={globalSearchQuery}
+              onClearInitialSearch={() => setGlobalSearchQuery('')}
             />
+          )}
+
+          {printingBooking && (
+            <div className="fixed inset-0 z-[10000]">
+              <ReportPrinter singleBooking={printingBooking} onClose={() => setPrintingBooking(null)} />
+            </div>
           )}
 
           {activeTab === 'booking' && (
             <div className="max-w-4xl mx-auto bg-white p-6 sm:p-8 rounded-xl border border-slate-200 shadow-sm">
               <BookingForm
+                key={editingBookingId || 'new'}
                 editId={editingBookingId}
                 onSuccess={() => {
                   setTimeout(() => setActiveTab('dashboard'), 1500);
@@ -333,7 +484,14 @@ function DashboardLayout() {
           )}
 
           {activeTab === 'reports' && (
-            <ReportPrinter singleBooking={printingBooking || undefined} />
+            <ReportPrinter />
+          )}
+
+          {activeTab === 'owing' && (currentUser?.role === 'Pharmacist' ||
+            currentUser?.role === 'Pharmacist Assistant' ||
+            currentUser?.role === 'Pharmacy Stock Clerk' ||
+            currentUser?.role === 'Admin') && (
+            <OwingMedPanel />
           )}
 
           {activeTab === 'users' && (
@@ -345,6 +503,79 @@ function DashboardLayout() {
           )}
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation (Thumb Zone) */}
+      <nav className="md:hidden fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 z-50 flex justify-between items-center sm:px-6 px-2 h-16 print:hidden pb-[env(safe-area-inset-bottom)]">
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          className={`flex-1 flex flex-col items-center justify-center space-y-1 ${
+            activeTab === 'dashboard' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          <Layers className="w-5 h-5 shrink-0" />
+          <span className="text-[9px] font-bold tracking-wider">{language === 'TH' ? 'หน้าหลัก' : 'Home'}</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('booking')}
+          className="flex-1 flex flex-col items-center justify-center -mt-5"
+        >
+          <div className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-transform ${
+            activeTab === 'booking' ? 'bg-blue-700 scale-110' : 'bg-blue-600 hover:bg-blue-700'
+          }`}>
+            <PlusCircle className="w-6 h-6 text-white shrink-0" />
+          </div>
+          <span className={`text-[9px] font-bold tracking-wider mt-1 ${activeTab === 'booking' ? 'text-blue-600' : 'text-slate-400'}`}>
+            {language === 'TH' ? 'จองยา' : 'Book'}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('calendar')}
+          className={`flex-1 flex flex-col items-center justify-center space-y-1 ${
+            activeTab === 'calendar' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          <Calendar className="w-5 h-5 shrink-0" />
+          <span className="text-[9px] font-bold tracking-wider">{language === 'TH' ? 'ปฏิทิน' : 'Agenda'}</span>
+        </button>
+
+        {(currentUser?.role === 'Pharmacist' || currentUser?.role === 'Pharmacist Assistant' || currentUser?.role === 'Pharmacy Stock Clerk' || currentUser?.role === 'Admin') && (
+          <button
+            onClick={() => setActiveTab('owing')}
+            className={`flex-1 flex flex-col items-center justify-center space-y-1 relative ${
+              activeTab === 'owing' ? 'text-rose-600' : 'text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <div className="relative">
+              <AlertCircle className="w-5 h-5 shrink-0" />
+              {owingMeds.filter(om => !om.resolved).length > 0 && (
+                <span className="absolute -top-1 -right-1.5 bg-red-500 text-white text-[8px] font-black font-mono w-4 h-4 rounded-full flex items-center justify-center">
+                  {owingMeds.filter(om => !om.resolved).length}
+                </span>
+              )}
+            </div>
+            <span className="text-[9px] font-bold tracking-wider">{language === 'TH' ? 'ค้างส่ง' : 'Owings'}</span>
+          </button>
+        )}
+
+        <button
+          onClick={() => setActiveTab('reports')}
+          className={`flex-1 flex flex-col items-center justify-center space-y-1 ${
+            activeTab === 'reports' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          <FileSpreadsheet className="w-5 h-5 shrink-0" />
+          <span className="text-[9px] font-bold tracking-wider">{language === 'TH' ? 'เมนู' : 'Menu'}</span>
+        </button>
+      </nav>
+
+      {/* Minimalist credit line at the absolute bottom of DashboardLayout */}
+      <footer className="py-2.5 text-center border-t border-slate-200/60 bg-white/40 print:hidden shrink-0 hidden md:block">
+        <p className="text-[10px] text-slate-400 font-medium tracking-wide">
+          Powered By <span className="font-semibold text-slate-500">Preeyapat.P (Pharmacist)</span>
+        </p>
+      </footer>
     </div>
   );
 }
@@ -417,11 +648,20 @@ function AuditLogsDashboard() {
 
 // Security Authentication Gate (Login Screen)
 function AuthGate() {
-  const { login, language, setLanguage } = useApp();
+  const { login, registerUser, language, setLanguage } = useApp();
   const t = i18n[language];
 
+  // Combined Login and Registration view states
+  const [isRegistering, setIsRegistering] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  
+  // Registration specific states
+  const [regName, setRegName] = useState('');
+  const [regUsername, setRegUsername] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regRole, setRegRole] = useState<UserRole>('Nurse');
+
   const [errorMsg, setErrorMsg] = useState('');
   const [signing, setSigning] = useState(false);
 
@@ -437,12 +677,55 @@ function AuthGate() {
     }
 
     const res = await login(username.trim(), password);
+    setSigning(true); // Keep spinner while session updates
     setSigning(false);
 
     if (!res.success) {
       setErrorMsg(res.error || 'Server connection failed - retry verification credentials');
     }
   };
+
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setSigning(true);
+
+    if (!regName.trim() || !regUsername.trim() || !regPassword.trim()) {
+      setErrorMsg('All fields are required!');
+      setSigning(false);
+      return;
+    }
+
+    const res = await registerUser({
+      name: regName.trim(),
+      username: regUsername.trim(),
+      password: regPassword.trim(),
+      role: regRole,
+      roles: [regRole]
+    });
+
+    setSigning(false);
+    if (res.success) {
+      // Clear values and toggle to login tab
+      setIsRegistering(false);
+      setUsername(regUsername.trim());
+      setRegName('');
+      setRegUsername('');
+      setRegPassword('');
+      setRegRole('Nurse');
+    } else {
+      setErrorMsg(res.error || 'Registration failed');
+    }
+  };
+
+  const AVAILABLE_ROLES_LOGIN: { id: UserRole; name: string; nameTh: string }[] = [
+    { id: 'Admin', name: 'Admin', nameTh: 'ผู้ดูแลระบบ (Admin)' },
+    { id: 'Pharmacist', name: 'Pharmacist', nameTh: 'เภสัชกร (Pharmacist)' },
+    { id: 'Pharmacist Assistant', name: 'Assistant', nameTh: 'ผู้ช่วยเภสัชกร (Pharmacist Assistant)' },
+    { id: 'Nurse', name: 'Nurse', nameTh: 'พยาบาล (Nurse)' },
+    { id: 'Doctor', name: 'Doctor', nameTh: 'แพทย์ (Doctor)' },
+    { id: 'Pharmacy Stock Clerk', name: 'Pharmacy Stock Clerk', nameTh: 'พนักงานคลังยา (Stock Clerk)' }
+  ];
 
   return (
     <div className="min-h-screen bg-[#F9FAFB] flex flex-col items-center justify-center p-4 animate-fade-in">
@@ -454,63 +737,166 @@ function AuthGate() {
           <div className="w-full h-px bg-slate-200/60 my-1"></div>
           <div>
             <h1 className="text-xl font-black tracking-tight text-blue-950 font-sans uppercase">
-              {t.loginTitle}
+              {isRegistering 
+                ? (language === 'TH' ? 'ลงทะเบียนพนักงานใหม่' : 'Staff Registration')
+                : t.loginTitle}
             </h1>
             <p className="text-xs text-slate-400 mt-1 max-w-xs leading-normal font-semibold">
-              {t.loginSubtitle}
+              {isRegistering
+                ? (language === 'TH' ? 'กรอกข้อมูลส่วนบุคคลเพื่อรอการอนุมัติสิทธิ์เข้าใช้งานจาก Admin' : 'Submit clinical credential parameters for administrator screening')
+                : t.loginSubtitle}
             </p>
           </div>
         </div>
 
-        {/* Login credentials input form */}
-        <form onSubmit={handleLoginSubmit} className="space-y-4 text-xs font-sans">
-          <div>
-            <label className="block text-slate-500 font-semibold mb-1">
-              {t.username} *
-            </label>
-            <input
-              id="login-username-input"
-              type="text"
-              required
-              autoComplete="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder={language === 'TH' ? 'ระบุรหัสผู้ใช้ / ชื่อผู้ใช้' : 'Enter User ID / Username'}
-              className="w-full bg-slate-50 focus:bg-white border border-slate-200 px-3 py-2.5 rounded-xl focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all font-semibold"
-            />
-          </div>
+        {errorMsg && (
+          <p className="text-red-500 font-bold bg-red-50 p-3 rounded-xl border border-red-100 animate-pulse text-[11px] leading-relaxed">
+            ⚠️ {errorMsg}
+          </p>
+        )}
 
-          <div>
-            <label className="block text-slate-500 font-semibold mb-1">
-              {t.password} *
-            </label>
-            <input
-              id="login-password-input"
-              type="password"
-              required
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={language === 'TH' ? 'ระบุรหัสผ่านของคุณ' : 'Enter clearance password'}
-              className="w-full bg-slate-50 focus:bg-white border border-slate-200 px-3 py-2.5 rounded-xl focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all font-mono"
-            />
-          </div>
+        {/* Dynamic Mode Forms */}
+        {!isRegistering ? (
+          /* Login Section */
+          <form onSubmit={handleLoginSubmit} className="space-y-4 text-xs font-sans">
+            <div>
+              <label className="block text-slate-500 font-semibold mb-1">
+                {t.username} *
+              </label>
+              <input
+                id="login-username-input"
+                type="text"
+                required
+                autoComplete="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder={language === 'TH' ? 'ระบุรหัสผู้ใช้ / ชื่อผู้ใช้' : 'Enter User ID / Username'}
+                className="w-full bg-slate-50 focus:bg-white border border-slate-200 px-3 py-2.5 rounded-xl focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all font-semibold"
+              />
+            </div>
 
-          {errorMsg && (
-            <p className="text-red-500 font-bold bg-red-50 p-2.5 rounded-xl border border-red-100 animate-pulse text-[11px]">
-              ⚠️ {errorMsg}
-            </p>
-          )}
+            <div>
+              <label className="block text-slate-500 font-semibold mb-1">
+                {t.password} *
+              </label>
+              <input
+                id="login-password-input"
+                type="password"
+                required
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={language === 'TH' ? 'ระบุรหัสผ่านของคุณ' : 'Enter clearance password'}
+                className="w-full bg-slate-50 focus:bg-white border border-slate-200 px-3 py-2.5 rounded-xl focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all font-mono"
+              />
+            </div>
 
-          <button
-            id="login-submit-btn"
-            type="submit"
-            disabled={signing}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer text-sm uppercase tracking-wider"
-          >
-            {signing ? 'Verifying clearance...' : t.btnLogin}
-          </button>
-        </form>
+            <button
+              id="login-submit-btn"
+              type="submit"
+              disabled={signing}
+              className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer text-sm uppercase tracking-wider disabled:opacity-55"
+            >
+              {signing ? 'Checking clearance keys...' : t.btnLogin}
+            </button>
+
+            <div className="text-center pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setErrorMsg('');
+                  setIsRegistering(true);
+                }}
+                className="text-xs text-blue-600 font-bold hover:underline cursor-pointer"
+              >
+                {language === 'TH' ? 'สมัครสมาชิก / ลงทะเบียนเข้าใช้งานใหม่ ➡️' : 'Register New Staff Account ➡️'}
+              </button>
+            </div>
+          </form>
+        ) : (
+          /* Registration Section */
+          <form onSubmit={handleRegisterSubmit} className="space-y-4 text-xs font-sans">
+            <div>
+              <label className="block text-slate-500 font-semibold mb-1">
+                {language === 'TH' ? 'ชื่อ-นามสกุล บุคลากร *' : 'Full Name *'}
+              </label>
+              <input
+                type="text"
+                required
+                value={regName}
+                onChange={(e) => setRegName(e.target.value)}
+                placeholder={language === 'TH' ? 'เช่น นายสมชาย ดีใจ' : 'e.g., Mrs. Clara Nurse'}
+                className="w-full bg-slate-50 focus:bg-white border border-slate-200 px-3 py-2.5 rounded-xl focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all font-semibold"
+              />
+            </div>
+
+            <div>
+              <label className="block text-slate-500 font-semibold mb-1">
+                {language === 'TH' ? 'รหัสบุคลากร / ชื่อผู้ใช้ทางการ (Username) *' : 'Desired User ID / Username *'}
+              </label>
+              <input
+                type="text"
+                required
+                value={regUsername}
+                onChange={(e) => setRegUsername(e.target.value)}
+                placeholder="e.g., staff101"
+                className="w-full bg-slate-50 focus:bg-white border border-slate-200 px-3 py-2.5 rounded-xl focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all font-mono font-bold"
+              />
+            </div>
+
+            <div>
+              <label className="block text-slate-500 font-semibold mb-1">
+                {language === 'TH' ? 'รหัสผ่านคีย์ระบบ *' : 'Clearance Security Password *'}
+              </label>
+              <input
+                type="password"
+                required
+                value={regPassword}
+                onChange={(e) => setRegPassword(e.target.value)}
+                placeholder="Enter password"
+                className="w-full bg-slate-50 focus:bg-white border border-slate-200 px-3 py-2.5 rounded-xl focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all font-mono"
+              />
+            </div>
+
+            <div>
+              <label className="block text-slate-500 font-semibold mb-1">
+                {language === 'TH' ? 'ตำแหน่งสิทธิ์ (Requested Position/Role) *' : 'Requested Action Role *'}
+              </label>
+              <select
+                value={regRole}
+                onChange={(e) => setRegRole(e.target.value as any)}
+                className="w-full bg-slate-50 focus:bg-white border border-slate-200 px-3 py-2.5 rounded-xl focus:outline-hidden focus:border-blue-500 cursor-pointer text-xs font-semibold"
+              >
+                {AVAILABLE_ROLES_LOGIN.map((role) => (
+                  <option key={role.id} value={role.id}>
+                    {language === 'TH' ? role.nameTh : role.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              type="submit"
+              disabled={signing}
+              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer text-sm uppercase tracking-wider disabled:opacity-55"
+            >
+              {signing ? 'Submitting request parameters...' : (language === 'TH' ? 'ส่งคำขออนุมัติลงทะเบียน' : 'Submit Registration Request')}
+            </button>
+
+            <div className="text-center pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setErrorMsg('');
+                  setIsRegistering(false);
+                }}
+                className="text-xs text-slate-500 hover:text-slate-700 font-bold hover:underline cursor-pointer"
+              >
+                {language === 'TH' ? '⬅️ มีบัญชีอยู่แล้ว? กลับหน้าเข้าสู่ระบบ' : '⬅️ Already registered? Go to Login'}
+              </button>
+            </div>
+          </form>
+        )}
 
         {/* Dual language selection inside AuthGate */}
         <div className="flex justify-center gap-3 bg-slate-50 p-1 rounded-lg max-w-[120px] mx-auto border border-slate-200">
@@ -532,6 +918,10 @@ function AuthGate() {
           </button>
         </div>
       </div>
+      {/* Minimalist credit line below the container card in AuthGate */}
+      <p className="mt-4 text-[10px] text-slate-400 font-medium tracking-wide animate-fade-in">
+        Powered By <span className="font-semibold text-slate-500">Preeyapat.P (Pharmacist)</span>
+      </p>
     </div>
   );
 }
