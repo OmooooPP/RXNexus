@@ -43,23 +43,50 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
       : 'opd'
   );
 
-  // Suggested Staff Lists
-  const suggestedDoctors = [
+  // Dynamic compilation of previous clinical team entries across all bookings for seamless auto-suggestion/memory
+  const dynamicBookedDoctors = Array.from(new Set(
+    (bookings || [])
+      .map(b => b.staff?.doctor)
+      .filter((d): d is string => typeof d === 'string' && d.trim().length > 0)
+  ));
+
+  const dynamicBookedNurses = Array.from(new Set(
+    (bookings || [])
+      .map(b => b.staff?.nurse)
+      .filter((n): n is string => typeof n === 'string' && n.trim().length > 0)
+  ));
+
+  const dynamicBookedPharmacists = Array.from(new Set(
+    (bookings || [])
+      .map(b => b.staff?.pharmacist)
+      .filter((p): p is string => typeof p === 'string' && p.trim().length > 0)
+  ));
+
+  // Suggested Staff Lists (combining past typed entries with defaults)
+  const suggestedDoctors = Array.from(new Set([
+    ...dynamicBookedDoctors,
     'Dr. Gregory House',
     'Dr. Sarah Smith',
     'Dr. Preeyapat Pong',
     'Dr. Somchai Dee',
     'Dr. Michael Scott',
     'Dr. Lisa Cuddy'
-  ];
+  ]));
 
-  const suggestedNurses = [
+  const suggestedNurses = Array.from(new Set([
+    ...dynamicBookedNurses,
     'Nurse Clara Barton',
     'Nurse Joy',
     'Nurse Florence Nightingale',
     'Nurse Somsri Permpun',
     'Nurse Preeya Pong'
-  ];
+  ]));
+
+  const suggestedPharmacists = Array.from(new Set([
+    ...dynamicBookedPharmacists,
+    'Dr. Sarah Smith (Pharmacist)',
+    'Pharmacist John Doe'
+  ]));
 
   const [doctor, setDoctor] = useState(existingRecord ? existingRecord.staff.doctor : '');
   const [nurse, setNurse] = useState(existingRecord ? existingRecord.staff.nurse : '');
@@ -795,11 +822,17 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
             <input
               id="pharmacist-input"
               type="text"
+              list="pharmacists-list"
               placeholder="e.g., Dr. Sarah Smith (Pharmacist)"
               value={pharmacist}
               onChange={(e) => setPharmacist(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 px-2.5 py-2 md:px-3 md:py-2 rounded-lg text-xs md:text-sm focus:outline-hidden"
             />
+            <datalist id="pharmacists-list">
+              {suggestedPharmacists.map((ph) => (
+                <option key={ph} value={ph} />
+              ))}
+            </datalist>
           </div>
         </div>
       </div>
