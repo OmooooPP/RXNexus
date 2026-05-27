@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, Drug, Booking, SystemLog, OwingMedication } from '../types';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
+import { User, Drug, Booking, SystemLog, OwingMedication, formatDateToDMY } from '../types';
 import { db, auth, OperationType, handleFirestoreError } from '../lib/firebase';
 import { collection, doc, setDoc, getDocs, onSnapshot, query, orderBy, deleteDoc, updateDoc } from 'firebase/firestore';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
@@ -56,6 +56,8 @@ interface AppContextType {
   clearAlerts: () => void;
   selectedPharmacyLocation: string;
   setSelectedPharmacyLocation: (loc: string) => void;
+  soundEnabled: boolean;
+  setSoundEnabled: (v: boolean) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -80,6 +82,40 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(false);
   const [language, setLanguage] = useState<'TH' | 'EN'>('EN');
   const [selectedPharmacyLocation, setSelectedPharmacyLocation] = useState<string>('All');
+  const prevVerificationStatusRef = useRef<Record<string, string>>({});
+
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem('sound_enabled');
+    return saved !== 'false'; // default true
+  });
+  const handleSetSoundEnabled = (val: boolean) => {
+    setSoundEnabled(val);
+    localStorage.setItem('sound_enabled', String(val));
+  };
+
+  const playChimeAndVibrate = () => {
+    try {
+      // Play a dual-tone hospital chime
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const playTone = (freq: number, startTime: number, duration: number) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.frequency.setValueAtTime(freq, startTime);
+        gain.gain.setValueAtTime(0.08, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(startTime);
+        osc.stop(startTime + duration);
+      };
+      playTone(880, ctx.currentTime, 0.15); // A5
+      playTone(1320, ctx.currentTime + 0.1, 0.35); // E6
+    } catch (e) {
+      console.warn("Chime failed", e);
+    }
+  };
 
   // Trigger system alert sound or local alerts on content updates
   const spawnAlert = (message: string, type: 'info' | 'success' = 'info', bookingId?: string, hn?: string) => {
@@ -93,6 +129,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       hn
     };
     setAlerts((prev) => [newAlert, ...prev].slice(0, 50)); // keep last 50
+
+    // Play chime sound if enabled
+    const isSound = localStorage.getItem('sound_enabled') !== 'false';
+    if (isSound) {
+      playChimeAndVibrate();
+    }
   };
 
   const clearAlerts = () => setAlerts([]);
@@ -112,14 +154,42 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         snap.docChanges().forEach((change) => {
           if (change.type === 'added') {
             const b = change.doc.data() as Booking;
+            const currentStatus = b.pharmacistVerification?.status || 'Pending';
+            prevVerificationStatusRef.current[b.id] = currentStatus;
+
             const createdSecs = new Date(b.createdAt).getTime();
-            if (Date.now() - createdSecs < 10000 && b.staff?.creatorId !== currentUser?.id) {
-              spawnAlert(
-                `New booking ready: ${b.patientName} (HN: ${b.hn}) reserved for ${b.dateOfUse}`,
-                'info',
-                b.id,
-                b.hn
-              );
+            // 60-second absolute skew tolerance to guarantee real-time alerts show up
+            const diffMs = Math.abs(Date.now() - createdSecs);
+            if (diffMs < 60000) {
+              // Only alert if the logged-in user is a Pharmacist, Pharmacist Assistant or Admin
+              if (currentUser?.role === 'Pharmacist' || currentUser?.role === 'Pharmacist Assistant' || currentUser?.role === 'Admin') {
+                const langPref = localStorage.getItem('rxnexus_lang') || 'EN';
+                const isThai = langPref === 'TH';
+                const alertMsg = isThai
+                  ? `🔔 แพทย์/พยาบาล มีการจองยาใหม่เข้ามา: คนไข้ HN: ${b.hn} (${b.patientName}) สำหรับวันที่ ${formatDateToDMY(b.dateOfUse)} รอกดตรวจสอบรายการ`
+                  : `New booking ready: Patient HN: ${b.hn} (${b.patientName}) reserved for ${formatDateToDMY(b.dateOfUse)}. Pending review.`;
+                
+                spawnAlert(alertMsg, 'info', b.id, b.hn);
+              }
+            }
+          }
+          if (change.type === 'modified') {
+            const b = change.doc.data() as Booking;
+            const prevStatus = prevVerificationStatusRef.current[b.id];
+            const currentStatus = b.pharmacistVerification?.status || 'Pending';
+            prevVerificationStatusRef.current[b.id] = currentStatus;
+
+            if (prevStatus !== 'Verified' && currentStatus === 'Verified') {
+              // Only alert if the logged-in user is a Pharmacy Stock Clerk or Admin
+              if (currentUser?.role === 'Pharmacy Stock Clerk' || currentUser?.role === 'Admin') {
+                const langPref = localStorage.getItem('rxnexus_lang') || 'EN';
+                const isThai = langPref === 'TH';
+                const alertMsg = isThai
+                  ? `✅ ห้องยาตรวจสอบรายการเรียบร้อย: มีการตรวจสอบรายการยาจองของคนไข้ HN: ${b.hn} (${b.patientName}) เรียบร้อยแล้ว ให้ดำเนินการต่อได้`
+                  : `Pharmacist verified booking: Patient HN: ${b.hn} (${b.patientName}) verified successfully. Please proceed with stock preparation.`;
+                
+                spawnAlert(alertMsg, 'success', b.id, b.hn);
+              }
             }
           }
         });
@@ -156,13 +226,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           if (change.type === 'added') {
             const om = change.doc.data() as OwingMedication;
             const createdSecs = new Date(om.createdAt).getTime();
-            if (Date.now() - createdSecs < 10000 && om.reportedBy !== currentUser?.name) {
-              spawnAlert(
-                `⚠️ OWING MEDICATIONS: ${om.patientName} (HN: ${om.hn}) has pending owing items!`,
-                'info',
-                om.bookingId,
-                om.hn
-              );
+            const diffMs = Math.abs(Date.now() - createdSecs);
+            if (diffMs < 60000) {
+              const langPref = localStorage.getItem('rxnexus_lang') || 'EN';
+              const isThai = langPref === 'TH';
+              const alertMsg = isThai
+                ? `⚠️ รายการค้างยา/ค้างรับเวชภัณฑ์: คนไข้ ${om.patientName} (HN: ${om.hn}) ยังได้รับยาไม่ครบ!`
+                : `⚠️ OWING MEDICATIONS: ${om.patientName} (HN: ${om.hn}) has pending owing items!`;
+
+              spawnAlert(alertMsg, 'info', om.bookingId, om.hn);
             }
           }
         });
@@ -1215,7 +1287,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         toggleMedicineOwing,
         clearAlerts,
         selectedPharmacyLocation,
-        setSelectedPharmacyLocation
+        setSelectedPharmacyLocation,
+        soundEnabled,
+        setSoundEnabled: handleSetSoundEnabled
       }}
     >
       {children}

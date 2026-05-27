@@ -42,7 +42,9 @@ function DashboardLayout() {
     bookings,
     owingMeds,
     users,
-    fetchUsers
+    fetchUsers,
+    soundEnabled,
+    setSoundEnabled
   } = useApp();
 
   useEffect(() => {
@@ -155,36 +157,59 @@ function DashboardLayout() {
           </div>
 
           {/* Alarm Notification Bells bell dropdown list */}
-          {(activeTab === 'owing' && currentUser?.role === 'Pharmacist') && (
+          {currentUser && (
             <div className="relative shrink-0">
               <button
+                id="header-notification-bell"
                 onClick={() => setShowAlertMenu(!showAlertMenu)}
                 className="p-1.5 md:p-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-500 hover:text-slate-800 rounded-full transition-all relative cursor-pointer"
+                title="System Notifications"
               >
-                <Bell className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                <Bell className="w-3.5 h-3.5 md:w-4 md:h-4 animate-pulse" />
                 {alerts.length > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center text-[9px] font-bold font-mono">
+                  <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-red-500 text-white rounded-full flex items-center justify-center text-[9px] font-bold font-mono">
                     {alerts.length}
                   </span>
                 )}
               </button>
 
               {showAlertMenu && (
-                <div className="absolute right-0 mt-2 w-64 md:w-80 bg-white rounded-2xl border border-slate-200 shadow-2xl z-50 overflow-hidden py-1">
-                  <div className="p-3 bg-slate-50 border-b border-slate-200/60 flex justify-between items-center text-xs">
-                    <span className="font-bold text-slate-700">Real-time alerts ({alerts.length})</span>
-                    {alerts.length > 0 && (
+                <div className="absolute right-0 mt-2 w-72 md:w-80 bg-white rounded-2xl border border-slate-200 shadow-2xl z-50 overflow-hidden py-1">
+                  {/* Title & Preferences header */}
+                  <div className="p-3 bg-slate-50 border-b border-slate-200/60 flex flex-col gap-2">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-bold text-slate-700">Real-time alerts ({alerts.length})</span>
+                      {alerts.length > 0 && (
+                        <button
+                          onClick={clearAlerts}
+                          className="text-[10px] text-red-500 hover:underline cursor-pointer px-1.5 py-0.5 rounded-md hover:bg-red-50 font-semibold"
+                        >
+                          Clear All
+                        </button>
+                      )}
+                    </div>
+                    {/* Preferences Controls panel */}
+                    <div className="pt-2 border-t border-slate-200/60 flex justify-center">
                       <button
-                        onClick={clearAlerts}
-                        className="text-[10px] text-red-500 hover:underline cursor-pointer"
+                        onClick={() => setSoundEnabled(!soundEnabled)}
+                        className={`flex items-center justify-center gap-1.5 py-1 px-4 w-full rounded-md border text-[10px] font-bold transition-all cursor-pointer ${
+                          soundEnabled
+                            ? 'bg-blue-50 text-blue-600 border-blue-200 shadow-xs'
+                            : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-50'
+                        }`}
+                        title="Toggle Notification Sound Clink"
                       >
-                        Clear
+                        {soundEnabled ? '🔊 Notification Sound: ON' : '🔇 Notification Sound: OFF'}
                       </button>
-                    )}
+                    </div>
                   </div>
-                  <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 text-[11px] text-slate-600">
+
+                  <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 text-[11px] text-slate-600 custom-mini-scroll">
                     {alerts.length === 0 ? (
-                      <p className="p-4 text-center text-slate-400">All channels clear. No active alerts.</p>
+                      <div className="py-6 px-4 text-center text-slate-400">
+                        <span className="text-lg block mb-1">🔔</span>
+                        All channels clear. No active alerts.
+                      </div>
                     ) : (
                       alerts.map((al) => (
                         <div
@@ -197,7 +222,7 @@ function DashboardLayout() {
                           }`}
                           title={al.hn ? `Click to inspect HN: ${al.hn}` : undefined}
                         >
-                          <p className="font-medium text-slate-800 flex items-start gap-1">
+                          <p className="font-medium text-slate-800 flex items-start gap-1 leading-relaxed">
                             {al.hn && <span className="text-xs shrink-0 select-none">🔍</span>}
                             <span>{al.message}</span>
                           </p>
