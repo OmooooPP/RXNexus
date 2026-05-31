@@ -168,7 +168,7 @@ export default function DatabaseMaintenance() {
             </div>
             <p className="text-sm text-slate-600 flex-1">
               {language === 'TH'
-                ? 'ลบข้อมูลรายการจองยาที่มี Date of Use เกิน 6 เดือนย้อนหลัง ដើម្បីประหยัดพื้นที่จัดเก็บบน Cloud (คำเตือน: โปรดทำการ Export ก่อนลบ)'
+                ? 'ลบข้อมูลรายการจองยาที่มี Date of Use เกิน 6 เดือนย้อนหลัง เพื่อประหยัดพื้นที่จัดเก็บบน Cloud (คำเตือน: โปรดทำการ Export ก่อนลบ)'
                 : 'Permanently delete bookings with a "Date of Use" older than 6 months to free up cloud Firestore limits.'}
             </p>
             <div className="w-full bg-white border border-red-100 rounded-lg p-3 text-sm text-slate-700 font-mono flex justify-between items-center">
