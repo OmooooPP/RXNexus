@@ -8,6 +8,7 @@ import StockManager from './components/StockManager';
 import UserAdminManager from './components/UserAdminManager';
 import ReportPrinter from './components/ReportPrinter';
 import OwingMedPanel from './components/OwingMedPanel';
+import DatabaseMaintenance from './components/DatabaseMaintenance';
 import LoadingSpinner from './components/LoadingSpinner';
 import BHPLogo from './components/BHPLogo';
 import { Booking, UserRole } from './types';
@@ -27,7 +28,8 @@ import {
   HelpCircle,
   PlusCircle,
   Clock,
-  AlertCircle
+  AlertCircle,
+  Database
 } from 'lucide-react';
 
 function DashboardLayout() {
@@ -72,7 +74,7 @@ function DashboardLayout() {
   const todayStr = new Date().toISOString().split('T')[0];
 
   // Active UI Navigation Tab State
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'booking' | 'calendar' | 'stocks' | 'users' | 'reports' | 'logs' | 'owing'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'booking' | 'calendar' | 'stocks' | 'users' | 'reports' | 'logs' | 'owing' | 'maintenance'>('dashboard');
 
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
 
@@ -389,6 +391,18 @@ function DashboardLayout() {
                     <History className="w-4 h-4 shrink-0" />
                     {t.navLogs}
                   </button>
+
+                  <button
+                    onClick={() => setActiveTab('maintenance')}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+                      activeTab === 'maintenance'
+                        ? 'bg-blue-50 text-blue-700'
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Database className="w-4 h-4 shrink-0" />
+                    {language === 'TH' ? 'จัดการฐานข้อมูล' : 'Data Maintenance'}
+                  </button>
                 </>
               )}
             </nav>
@@ -525,6 +539,10 @@ function DashboardLayout() {
 
           {activeTab === 'logs' && currentUser?.role === 'Admin' && (
             <AuditLogsDashboard />
+          )}
+
+          {activeTab === 'maintenance' && currentUser?.role === 'Admin' && (
+            <DatabaseMaintenance />
           )}
         </main>
       </div>
