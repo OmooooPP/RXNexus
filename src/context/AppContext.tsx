@@ -83,6 +83,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [language, setLanguage] = useState<'TH' | 'EN'>('EN');
   const [selectedPharmacyLocation, setSelectedPharmacyLocation] = useState<string>('All');
   const prevVerificationStatusRef = useRef<Record<string, string>>({});
+  const prevClerkStatusRef = useRef<Record<string, string>>({});
 
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
     const saved = localStorage.getItem('sound_enabled');
@@ -157,12 +158,19 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             const currentStatus = b.pharmacistVerification?.status || 'Pending';
             prevVerificationStatusRef.current[b.id] = currentStatus;
 
+            const currentClerkStatus = b.clerkVerification?.status || 'Pending';
+            prevClerkStatusRef.current[b.id] = currentClerkStatus;
+
             const createdSecs = new Date(b.createdAt).getTime();
             // 60-second absolute skew tolerance to guarantee real-time alerts show up
             const diffMs = Math.abs(Date.now() - createdSecs);
             if (diffMs < 60000) {
               // Only alert if the logged-in user is a Pharmacist, Pharmacist Assistant or Admin
-              if (currentUser?.role === 'Pharmacist' || currentUser?.role === 'Pharmacist Assistant' || currentUser?.role === 'Admin') {
+              const isPharmacist = currentUser?.role === 'Pharmacist' || currentUser?.roles?.includes('Pharmacist');
+              const isAssistant = currentUser?.role === 'Pharmacist Assistant' || currentUser?.roles?.includes('Pharmacist Assistant');
+              const isAdmin = currentUser?.role === 'Admin' || currentUser?.roles?.includes('Admin');
+              
+              if (isPharmacist || isAssistant || isAdmin) {
                 const langPref = localStorage.getItem('rxnexus_lang') || 'EN';
                 const isThai = langPref === 'TH';
                 const alertMsg = isThai
@@ -172,6 +180,47 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                 spawnAlert(alertMsg, 'info', b.id, b.hn);
               }
             }
+            
+            // Check for recently verified by pharmacist (for stock clerk offline sync)
+            if (currentStatus === 'Verified' && b.pharmacistVerification?.verifiedAt) {
+              const verifiedSecs = new Date(b.pharmacistVerification.verifiedAt).getTime();
+              const diffMsVerified = Math.abs(Date.now() - verifiedSecs);
+              
+              if (diffMsVerified < 60000) {
+                const isClerk = currentUser?.role === 'Pharmacy Stock Clerk' || currentUser?.roles?.includes('Pharmacy Stock Clerk');
+                const isAdmin = currentUser?.role === 'Admin' || currentUser?.roles?.includes('Admin');
+                if (isClerk || isAdmin) {
+                  const langPref = localStorage.getItem('rxnexus_lang') || 'EN';
+                  const isThai = langPref === 'TH';
+                  const alertMsg = isThai
+                    ? `✅ ห้องยาตรวจสอบรายการเรียบร้อย: มีการตรวจสอบรายการยาจองของคนไข้ HN: ${b.hn} (${b.patientName}) เรียบร้อยแล้ว ให้ดำเนินการต่อได้`
+                    : `Pharmacist verified booking: Patient HN: ${b.hn} (${b.patientName}) verified successfully. Please proceed with stock preparation.`;
+                  
+                  spawnAlert(alertMsg, 'success', b.id, b.hn);
+                }
+              }
+            }
+
+            // Check for recently verified by clerk (for nurse/doctor offline sync)
+            if (currentClerkStatus === 'Ready-to-use' && b.clerkVerification?.verifiedAt) {
+              const verifiedSecs = new Date(b.clerkVerification.verifiedAt).getTime();
+              const diffMsVerified = Math.abs(Date.now() - verifiedSecs);
+              
+              if (diffMsVerified < 60000) {
+                const isNurse = currentUser?.role === 'Nurse' || currentUser?.roles?.includes('Nurse');
+                const isDoctor = currentUser?.role === 'Doctor' || currentUser?.roles?.includes('Doctor');
+                const isAdmin = currentUser?.role === 'Admin' || currentUser?.roles?.includes('Admin');
+                if (isNurse || isDoctor || isAdmin) {
+                  const langPref = localStorage.getItem('rxnexus_lang') || 'EN';
+                  const isThai = langPref === 'TH';
+                  const alertMsg = isThai
+                    ? `📦 คลังยาเตรียมเวชภัณฑ์เสร็จสิ้น: ของคนไข้ HN: ${b.hn} (${b.patientName}) พร้อมนำไปใช้งานแล้ว`
+                    : `Warehouse completed preparation: Patient HN: ${b.hn} (${b.patientName}) stock is ready. Please proceed with administration.`;
+                  
+                  spawnAlert(alertMsg, 'success', b.id, b.hn);
+                }
+              }
+            }
           }
           if (change.type === 'modified') {
             const b = change.doc.data() as Booking;
@@ -179,14 +228,36 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             const currentStatus = b.pharmacistVerification?.status || 'Pending';
             prevVerificationStatusRef.current[b.id] = currentStatus;
 
+            const prevClerkStatus = prevClerkStatusRef.current[b.id];
+            const currentClerkStatus = b.clerkVerification?.status || 'Pending';
+            prevClerkStatusRef.current[b.id] = currentClerkStatus;
+
             if (prevStatus !== 'Verified' && currentStatus === 'Verified') {
               // Only alert if the logged-in user is a Pharmacy Stock Clerk or Admin
-              if (currentUser?.role === 'Pharmacy Stock Clerk' || currentUser?.role === 'Admin') {
+              const isClerk = currentUser?.role === 'Pharmacy Stock Clerk' || currentUser?.roles?.includes('Pharmacy Stock Clerk');
+              const isAdmin = currentUser?.role === 'Admin' || currentUser?.roles?.includes('Admin');
+              if (isClerk || isAdmin) {
                 const langPref = localStorage.getItem('rxnexus_lang') || 'EN';
                 const isThai = langPref === 'TH';
                 const alertMsg = isThai
                   ? `✅ ห้องยาตรวจสอบรายการเรียบร้อย: มีการตรวจสอบรายการยาจองของคนไข้ HN: ${b.hn} (${b.patientName}) เรียบร้อยแล้ว ให้ดำเนินการต่อได้`
                   : `Pharmacist verified booking: Patient HN: ${b.hn} (${b.patientName}) verified successfully. Please proceed with stock preparation.`;
+                
+                spawnAlert(alertMsg, 'success', b.id, b.hn);
+              }
+            }
+
+            if (prevClerkStatus !== 'Ready-to-use' && currentClerkStatus === 'Ready-to-use') {
+              // Only alert if logged-in user is Nurse, Doctor, or Admin
+              const isNurse = currentUser?.role === 'Nurse' || currentUser?.roles?.includes('Nurse');
+              const isDoctor = currentUser?.role === 'Doctor' || currentUser?.roles?.includes('Doctor');
+              const isAdmin = currentUser?.role === 'Admin' || currentUser?.roles?.includes('Admin');
+              if (isNurse || isDoctor || isAdmin) {
+                const langPref = localStorage.getItem('rxnexus_lang') || 'EN';
+                const isThai = langPref === 'TH';
+                const alertMsg = isThai
+                  ? `📦 คลังยาเตรียมเวชภัณฑ์เสร็จสิ้น: ของคนไข้ HN: ${b.hn} (${b.patientName}) พร้อมนำไปใช้งานแล้ว`
+                  : `Warehouse completed preparation: Patient HN: ${b.hn} (${b.patientName}) stock is ready. Please proceed with administration.`;
                 
                 spawnAlert(alertMsg, 'success', b.id, b.hn);
               }
