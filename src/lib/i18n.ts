@@ -220,7 +220,7 @@ export const i18n = {
     colPatient: "ข้อมูลผู้ป่วย/สิทธิ์",
     colUseDate: "วันที่ใช้วัคซีน/ยา",
     colMed: "รายการส่งจองยา",
-    colVerification: "สถานะควบคุมคุณภาพยาส่งต่อ",
+    colVerification: "สถานะและการตรวจสอบยา",
     colActions: "ตัวเลือก",
     valDoctor: "แพทย์สั่ง",
     valNurse: "พยาบาลส่ง",
