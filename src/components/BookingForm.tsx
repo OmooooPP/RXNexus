@@ -117,8 +117,16 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
     fetchDrugs();
   }, []);
 
+  // Search picker classification mode (inherits booking mode but can be toggled independently)
+  const [pickerDrugType, setPickerDrugType] = useState<'General' | 'Oncology'>(mode);
+
+  // Sync with booking mode when booking mode changes
+  useEffect(() => {
+    setPickerDrugType(mode);
+  }, [mode]);
+
   // Filter drugs directory based on selected Class Mode (General/Oncology)
-  const filteredDrugs = drugs.filter((d) => d.type === mode && !d.deleteRequested);
+  const filteredDrugs = drugs.filter((d) => d.type === pickerDrugType && !d.deleteRequested);
 
   // Query selected drug obj
   const selectedDrugObj = filteredDrugs.find((d) => d.id === activeDrugId);
@@ -552,8 +560,28 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
         </h3>
 
         {/* Drug picker line */}
-        <div className="flex flex-col sm:flex-row gap-2 md:gap-3 bg-slate-50 p-2 md:p-3 rounded-lg border border-slate-200 items-end">
-          <div className="flex-1 w-full">
+        <div className="flex flex-col sm:flex-row gap-2 md:gap-3 bg-slate-50 p-2 md:p-3 rounded-lg border border-slate-200 items-stretch sm:items-end">
+          {/* Classification type selector inside picker */}
+          <div className="w-full sm:w-44 text-left">
+            <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">
+              {language === 'TH' ? 'หมวดหมู่ยา' : 'Drug Category'}
+            </label>
+            <select
+              id="picker-drug-type-select"
+              value={pickerDrugType}
+              onChange={(e) => {
+                setPickerDrugType(e.target.value as 'General' | 'Oncology');
+                setActiveDrugId(''); // Clear selection when category changes
+                setDrugSearchQuery('');
+              }}
+              className="w-full bg-white border border-slate-200 px-2.5 py-2 md:py-2.5 rounded-lg text-xs md:text-sm font-semibold focus:outline-hidden focus:border-blue-500 cursor-pointer animate-fade-in"
+            >
+              <option value="General">{t.modeGeneral}</option>
+              <option value="Oncology">{t.modeOncology}</option>
+            </select>
+          </div>
+
+          <div className="flex-1 w-full text-left">
             <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">
               {t.selectDrug}
             </label>
