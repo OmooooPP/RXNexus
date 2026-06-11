@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { i18n } from '../lib/i18n';
 import { Drug } from '../types';
-import { Plus, Trash, Edit2, Check, X, ShieldAlert, ArrowUpDown } from 'lucide-react';
+import { Plus, Trash, Edit2, Check, X, ShieldAlert, ArrowUpDown, Search } from 'lucide-react';
 
 export default function StockManager() {
   const {
@@ -30,6 +30,10 @@ export default function StockManager() {
   // Deletion request states
   const [pendingDeleteDrugId, setPendingDeleteDrugId] = useState<string | null>(null);
   const [deleteReasonText, setDeleteReasonText] = useState('');
+
+  // List Searching & Classification Filters
+  const [listSearchQuery, setListSearchQuery] = useState('');
+  const [listTypeFilter, setListTypeFilter] = useState<'All' | 'General' | 'Oncology'>('All');
 
   // Form Fields
   const [name, setName] = useState('');
@@ -537,7 +541,68 @@ export default function StockManager() {
       )}
 
       {/* Grid of registered pharmacy lines */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden animate-fade-in">
+        {/* Search & Filter Bar */}
+        <div className="p-4 bg-slate-50/50 border-b border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+          {/* Left: Classification filter */}
+          <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => setListTypeFilter('All')}
+              className={`flex-1 sm:flex-none px-4 py-1.5 font-bold text-[11px] uppercase tracking-wider rounded transition-all cursor-pointer ${
+                listTypeFilter === 'All'
+                  ? 'bg-white text-slate-800 shadow-xs border border-slate-200/50 font-extrabold'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              {language === 'TH' ? 'ทั้งหมด' : 'All'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setListTypeFilter('General')}
+              className={`flex-1 sm:flex-none px-4 py-1.5 font-bold text-[11px] uppercase tracking-wider rounded transition-all cursor-pointer ${
+                listTypeFilter === 'General'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              {t.modeGeneral}
+            </button>
+            <button
+              type="button"
+              onClick={() => setListTypeFilter('Oncology')}
+              className={`flex-1 sm:flex-none px-4 py-1.5 font-bold text-[11px] uppercase tracking-wider rounded transition-all cursor-pointer ${
+                listTypeFilter === 'Oncology'
+                  ? 'bg-red-600 text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              {t.modeOncology}
+            </button>
+          </div>
+
+          {/* Right: Search Box */}
+          <div className="relative w-full sm:w-80">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={listSearchQuery}
+              onChange={(e) => setListSearchQuery(e.target.value)}
+              placeholder={language === 'TH' ? 'ค้นหารายการเวชภัณฑ์ยา...' : 'Search medicine catalog...'}
+              className="w-full bg-white border border-slate-200 pl-10 pr-8 py-2 rounded-lg text-xs focus:outline-hidden focus:border-blue-500 focus:bg-white focus:ring-1 focus:ring-blue-500/20 transition-all font-sans font-medium"
+            />
+            {listSearchQuery && (
+              <button
+                type="button"
+                onClick={() => setListSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        </div>
+
         <table className="w-full text-left text-xs border-collapse">
           <thead>
             <tr className="bg-slate-50 text-slate-500 uppercase tracking-wider text-[10px] font-bold border-b border-slate-200">
@@ -552,7 +617,29 @@ export default function StockManager() {
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100">
-            {drugs.map((drug) => (
+            {(() => {
+              const filteredList = drugs.filter((drug) => {
+                const q = listSearchQuery.toLowerCase().trim();
+                const matchesSearch =
+                  !q ||
+                  drug.name.toLowerCase().includes(q) ||
+                  drug.stockCode.toLowerCase().includes(q) ||
+                  drug.id.toLowerCase().includes(q);
+                const matchesType = listTypeFilter === 'All' ? true : drug.type === listTypeFilter;
+                return matchesSearch && matchesType;
+              });
+
+              if (filteredList.length === 0) {
+                return (
+                  <tr>
+                    <td colSpan={isPharmacistOrAdmin ? 8 : 7} className="p-8 text-center text-slate-400 font-medium">
+                      {language === 'TH' ? '❌ ไม่พบรายการเวชภัณฑ์ยาที่ตรงตามเงื่อนไข' : '❌ No medicines found matching filter parameters'}
+                    </td>
+                  </tr>
+                );
+              }
+
+              return filteredList.map((drug) => (
               <tr key={drug.id} className="hover:bg-neutral-50/40 transition-colors">
                 <td className="p-4">
                   <div className="flex items-center gap-2">
@@ -634,7 +721,8 @@ export default function StockManager() {
                   </td>
                 )}
               </tr>
-            ))}
+              ));
+            })()}
           </tbody>
         </table>
       </div>
