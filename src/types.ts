@@ -74,6 +74,8 @@ export interface Booking {
   medications: BookingMedication[];
   totalAmount: number;
   prescriptionImage: string; // base64 string
+  regimen?: string;
+  note?: string;
   staff: BookingStaff;
   pharmacistVerification: Verification;
   clerkVerification: Verification;
