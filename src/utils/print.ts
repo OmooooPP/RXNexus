@@ -49,13 +49,13 @@ export function printElementByNewWindow(elementId: string, pageTitle: string = '
               background-color: #ffffff;
               color: #1e293b;
               margin: 0;
-              padding: 0;
+              padding: 15mm 15mm 15mm 15mm !important;
               -webkit-print-color-adjust: exact !important;
               print-color-adjust: exact !important;
             }
             @page {
               size: A4;
-              margin: 12mm 12mm 12mm 12mm;
+              margin: 0 !important;
             }
             .page-break {
               page-break-before: always;
