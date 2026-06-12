@@ -42,6 +42,8 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
       ? existingRecord.medications[0].priceType 
       : 'opd'
   );
+  const [regimen, setRegimen] = useState(existingRecord ? existingRecord.regimen || '' : '');
+  const [note, setNote] = useState(existingRecord ? existingRecord.note || '' : '');
 
   // Dynamic compilation of previous clinical team entries across all bookings for seamless auto-suggestion/memory
   const dynamicBookedDoctors = Array.from(new Set(
@@ -335,6 +337,8 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
       medications: selectedMeds,
       totalAmount: grandTotal,
       prescriptionImage: imageEncoded,
+      regimen: regimen.trim(),
+      note: note.trim(),
       staff: {
         doctor,
         nurse,
@@ -363,6 +367,8 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
         setPharmacyLocation('');
         setSelectedMeds([]);
         setImageEncoded('');
+        setRegimen('');
+        setNote('');
       } else {
         setValidationError(result.error || 'System Creation Fail');
       }
@@ -551,6 +557,32 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
             })}
           </div>
         </div>
+
+        {/* Regimen Text Input */}
+        <div>
+          <label className="block text-xs md:text-sm font-bold text-slate-700 mb-1.5">{t.regimen}</label>
+          <input
+            id="regimen-input"
+            type="text"
+            value={regimen}
+            onChange={(e) => setRegimen(e.target.value)}
+            placeholder={language === 'TH' ? 'ระบุสูตรเคมีบำบัด / สูตรยา เช่น FOLFOX' : 'e.g., FOLFOX, AC-T, etc.'}
+            className="w-full bg-slate-50 border border-slate-200 px-2.5 py-2 md:px-3 md:py-2.5 rounded-lg text-xs md:text-sm focus:outline-hidden focus:border-blue-500 focus:bg-white font-semibold"
+          />
+        </div>
+
+        {/* Note Text Input */}
+        <div>
+          <label className="block text-xs md:text-sm font-bold text-slate-700 mb-1.5">{t.note}</label>
+          <input
+            id="note-input"
+            type="text"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder={language === 'TH' ? 'บันทึกคำสั่งหรือข้อควรระวังเพิ่มเติม' : 'Special clinical directions or prep notes'}
+            className="w-full bg-slate-50 border border-slate-200 px-2.5 py-2 md:px-3 md:py-2.5 rounded-lg text-xs md:text-sm focus:outline-hidden focus:border-blue-500 focus:bg-white"
+          />
+        </div>
       </div>
 
       {/* Medication Lists */}
@@ -702,7 +734,7 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
                   <th className="p-3">Medicine Info</th>
                   <th className="p-3">Stock Code</th>
                   <th className="p-3 text-center">Qty</th>
-                  <th className="p-3 text-right">Unit Rate</th>
+                  <th className="p-3 text-right">Unit Price</th>
                   <th className="p-3 text-right">Subtotal</th>
                   <th className="p-3 text-center"></th>
                 </tr>
@@ -958,7 +990,7 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
                 <span className="font-mono font-bold text-slate-800 text-[11px] whitespace-nowrap inline-block">{bookedReceipt.hn}</span>
               </div>
               <div className="space-y-0.5">
-                <span className="block text-slate-400 text-[9px] uppercase font-bold">{language === 'TH' ? 'ชื่อเครื่องหลักผู้ป่วย' : 'Patient Full Name'}</span>
+                <span className="block text-slate-400 text-[9px] uppercase font-bold">{language === 'TH' ? 'ชื่อ-นามสกุล ของผู้ป่วย' : 'Patient Full Name'}</span>
                 <span className="font-bold text-slate-800 text-[11px]">{bookedReceipt.patientName}</span>
               </div>
               <div className="space-y-0.5">
@@ -969,6 +1001,18 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
                 <span className="block text-slate-400 text-[9px] uppercase font-bold">{language === 'TH' ? 'หมวดหมู่การสำรอง' : 'Classification Mode'}</span>
                 <span className={`inline-block font-extrabold uppercase text-[9px] ${bookedReceipt.mode === 'Oncology' ? 'text-red-650 text-red-600' : 'text-blue-650 text-blue-600'}`}>{bookedReceipt.mode}</span>
               </div>
+              {bookedReceipt.regimen && (
+                <div className="space-y-0.5 col-span-2 border-t border-slate-200/60 pt-2.5">
+                  <span className="block text-indigo-500 text-[9px] uppercase font-black tracking-wider">{language === 'TH' ? 'สูตรเคมีบำบัด / สูตรยา (Regimen)' : 'Treatment Regimen'}</span>
+                  <span className="font-bold text-indigo-950 text-[11px] bg-indigo-50 px-2 py-1 rounded-sm border border-indigo-100/55 inline-block">{bookedReceipt.regimen}</span>
+                </div>
+              )}
+              {bookedReceipt.note && (
+                <div className="space-y-0.5 col-span-2 border-t border-slate-200/60 pt-2.5">
+                  <span className="block text-slate-400 text-[9px] uppercase font-bold">{language === 'TH' ? 'หมายเหตุเพิ่มเติม' : 'Special Notes'}</span>
+                  <span className="text-slate-600 text-[11px] block whitespace-pre-wrap">{bookedReceipt.note}</span>
+                </div>
+              )}
             </div>
 
             {/* Medications Table List */}
