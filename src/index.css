@@ -3,6 +3,7 @@
 
 @theme {
   --font-sans: "Inter", "Sarabun", ui-sans-serif, system-ui, sans-serif;
+  --font-sarabun: "Sarabun", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
@@ -28,6 +29,11 @@
 
 /* Print CSS Configurations for flawless PDF and Slip Voucher generation */
 @media print {
+  @page {
+    size: A4;
+    margin: 0 !important;
+  }
+
   /* Set all unnecessary UI elements, navigation bars, sidebars, and backgrounds to display: none */
   header, 
   aside,
