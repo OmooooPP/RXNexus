@@ -33,6 +33,17 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
     ...bookings.map(b => b.pharmacyLocation).filter(Boolean)
   ])) as string[];
 
+  // If user is a Pharmacy Stock Clerk, enforce selecting a specific pharmacy location
+  React.useEffect(() => {
+    if (currentUser?.role === 'Pharmacy Stock Clerk' && (pharmacyLocation === 'All' || !pharmacyLocation)) {
+      const firstLoc = selectedPharmacyLocation && selectedPharmacyLocation !== 'All' 
+        ? selectedPharmacyLocation 
+        : (uniqueLocations[0] || 'Phar IV');
+      setPharmacyLocation(firstLoc);
+      setSelectedPharmacyLocation(firstLoc);
+    }
+  }, [currentUser?.role, uniqueLocations, pharmacyLocation]);
+
   const isDrugOwing = (bookingId: string, drugId: string): boolean => {
     const oRecord = owingMeds?.find(om => om.bookingId === bookingId);
     if (!oRecord) return false;
@@ -283,20 +294,20 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-lg bg-slate-50 border border-slate-200 text-[10px] sm:text-xs">
                   <div>
                     <span className="text-slate-400 uppercase font-black tracking-wider text-[8px] block">Sourcing ID</span>
-                    <span className="font-bold text-blue-900">{singleBooking.id}</span>
+                    <span className="font-bold text-blue-900 font-sarabun">{singleBooking.id}</span>
                   </div>
                   <div>
                     <span className="text-slate-400 uppercase font-black tracking-wider text-[8px] block">{t.patientName}</span>
                     <span className="font-bold text-slate-800">{singleBooking.patientName}</span>
-                    <span className="block text-[9px] text-slate-500 font-semibold whitespace-nowrap font-mono">HN: {singleBooking.hn}</span>
+                    <span className="block text-[10px] text-slate-500 font-extrabold whitespace-nowrap font-sarabun">HN: {singleBooking.hn}</span>
                   </div>
                   <div>
                     <span className="text-slate-400 uppercase font-black tracking-wider text-[8px] block">{t.bookingDate}</span>
-                    <span className="font-bold text-slate-700">{formatDateToDMY(singleBooking.bookingDate)}</span>
+                    <span className="font-bold text-slate-700 font-sarabun text-xs">{formatDateToDMY(singleBooking.bookingDate)}</span>
                   </div>
                   <div className="text-right">
                     <span className="text-slate-400 uppercase font-black tracking-wider text-[8px] block">{t.dateOfUse}</span>
-                    <span className="font-black text-slate-900 text-sm">{formatDateToDMY(singleBooking.dateOfUse)}</span>
+                    <span className="font-black text-slate-900 text-sm font-sarabun">{formatDateToDMY(singleBooking.dateOfUse)}</span>
                     <span className="block text-[8px] text-slate-400 font-bold uppercase">{singleBooking.department}</span>
                   </div>
                 </div>
@@ -309,32 +320,50 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
                   <div className="border border-slate-200 rounded-lg overflow-hidden">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
-                        <tr className="bg-slate-50 text-slate-500 font-black uppercase text-[8.5px] border-b border-slate-200">
+                        <tr className="bg-slate-50 text-slate-550 font-bold uppercase text-[8.5px] border-b border-slate-200">
                           <th className="py-2 px-3">Medication Description</th>
                           <th className="py-2 px-3 text-center">stock code</th>
                           <th className="py-2 px-3 text-center w-20">Qty</th>
-                          <th className="py-2 px-3 text-right">Unit Rate</th>
+                          <th className="py-2 px-3 text-right">Unit Price</th>
                           <th className="py-2 px-3 text-right">Subtotal</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100 font-medium text-slate-700 select-none">
+                      <tbody className="divide-y divide-slate-101 font-medium text-slate-700 select-none">
                         {singleBooking.medications.map((item, idx) => (
                           <tr key={idx} className="bg-white">
                             <td className="py-2 px-3 font-semibold text-slate-900">{item.drugName}</td>
-                            <td className="py-2 px-3 text-center text-slate-400 font-semibold">{item.stockCode}</td>
-                            <td className="py-2 px-3 text-center font-bold text-slate-900 text-sm">{item.quantity}</td>
-                            <td className="py-2 px-3 text-right font-semibold">฿{item.unitPrice.toLocaleString()}</td>
-                            <td className="py-2 px-3 text-right font-bold text-slate-900">฿{item.totalPrice.toLocaleString()}</td>
+                            <td className="py-2 px-3 text-center text-slate-400 font-extrabold font-sarabun text-xs">{item.stockCode}</td>
+                            <td className="py-2 px-3 text-center font-bold text-slate-900 text-sm font-sarabun">{item.quantity}</td>
+                            <td className="py-2 px-3 text-right font-bold text-slate-800 font-sarabun">฿{item.unitPrice.toLocaleString()}</td>
+                            <td className="py-2 px-3 text-right font-black text-slate-900 font-sarabun">฿{item.totalPrice.toLocaleString()}</td>
                           </tr>
                         ))}
                         <tr className="bg-slate-50 font-bold text-slate-900 border-t border-slate-200">
                           <td colSpan={4} className="py-3 px-3 text-right text-slate-500 text-[9px] tracking-wider uppercase font-black">Total Amount Due:</td>
-                          <td className="py-3 px-3 text-right text-blue-900 text-base font-black">฿{singleBooking.totalAmount.toLocaleString()}</td>
+                          <td className="py-3 px-3 text-right text-blue-900 text-base font-black font-sarabun">฿{singleBooking.totalAmount.toLocaleString()}</td>
                         </tr>
                       </tbody>
                     </table>
                   </div>
                 </div>
+
+                {/* Regimen and Notes if present */}
+                {(singleBooking.regimen || singleBooking.note) && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-lg bg-indigo-50/45 border border-indigo-150/75 text-xs text-indigo-950 font-medium font-sans">
+                    {singleBooking.regimen && (
+                      <div>
+                        <span className="text-indigo-600 uppercase font-black tracking-wider text-[8px] block mb-1">Treatment Regimen</span>
+                        <span className="font-extrabold bg-white border border-indigo-150 rounded px-1.5 py-0.5 inline-block">{singleBooking.regimen}</span>
+                      </div>
+                    )}
+                    {singleBooking.note && (
+                      <div>
+                        <span className="text-slate-400 uppercase font-black tracking-wider text-[8px] block mb-1">Special Notes / Clinical Directions</span>
+                        <p className="text-slate-700 bg-white border border-slate-150 rounded p-2 text-[11px] font-medium whitespace-pre-wrap">{singleBooking.note}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Clinical verification */}
                 <div className="grid grid-cols-2 gap-4 p-4 rounded-lg bg-slate-50/50 border border-slate-200 text-[10px] text-slate-600">
@@ -361,7 +390,7 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
                   <div className="space-y-4">
                     <div className="border-b border-dashed border-slate-400 w-44 mx-auto h-7 flex items-end justify-center pb-0.5">
                       {singleBooking.pharmacistVerification.status === 'Verified' && (
-                        <span className="font-black text-blue-900 text-[11px]">{singleBooking.pharmacistVerification.verifiedBy}</span>
+                        <span className="font-black text-blue-900 text-[11px] font-sarabun">{singleBooking.pharmacistVerification.verifiedBy}</span>
                       )}
                     </div>
                     <p className="uppercase text-[8px] font-black text-slate-400 mt-1">Dispensing Pharmacist Sign (RPh)</p>
@@ -369,7 +398,6 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
                 </div>
               </div>
             )}
-
             {/* Layout 2: Patient Receipt */}
             {isPatientReceipt && singleBooking && (
               <div className="space-y-6">
@@ -382,7 +410,7 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
                     </div>
                     <div>
                       <span className="text-amber-600 font-extrabold uppercase text-[8.5px] tracking-wider block">Patient HN / รหัสโรงพยาบาล</span>
-                      <span className="font-bold text-slate-800 text-sm block mt-0.5 whitespace-nowrap font-mono">{singleBooking.hn}</span>
+                      <span className="font-bold text-slate-800 text-sm block mt-0.5 whitespace-nowrap font-sarabun">{singleBooking.hn}</span>
                     </div>
                     <div>
                       <span className="text-amber-600 font-extrabold uppercase text-[8.5px] tracking-wider block">Clinic Ward / แผนกรับบริการ</span>
@@ -390,7 +418,7 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
                     </div>
                     <div className="text-right">
                       <span className="text-amber-600 font-extrabold uppercase text-[8.5px] tracking-wider block">Reservation Date / วันที่ต้องใช้</span>
-                      <span className="font-black text-amber-900 text-sm block mt-0.5">{formatDateToDMY(singleBooking.dateOfUse)}</span>
+                      <span className="font-black text-amber-900 text-sm block mt-0.5 font-sarabun">{formatDateToDMY(singleBooking.dateOfUse)}</span>
                     </div>
                   </div>
                 </div>
@@ -404,7 +432,7 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
                   <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs bg-white">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
-                        <tr className="bg-slate-50 text-slate-500 font-black uppercase tracking-wider text-[8px] border-b border-slate-200">
+                        <tr className="bg-slate-50 text-slate-550 font-black uppercase tracking-wider text-[8px] border-b border-slate-200">
                           <th className="py-2.5 px-3">#</th>
                           <th className="py-2.5 px-3">Medication Name / ชื่อยา</th>
                           <th className="py-2.5 px-3 text-center whitespace-nowrap">Stock Code</th>
@@ -413,22 +441,22 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
                           <th className="py-2.5 px-3 text-right">Subtotal / ยอดรวมย่อย</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
+                      <tbody className="divide-y divide-slate-101 text-slate-700 font-medium">
                         {singleBooking.medications.map((item, idx) => (
                           <tr key={idx} className="hover:bg-slate-50/20">
-                            <td className="py-2.5 px-3 text-slate-400 font-semibold">{idx + 1}</td>
+                            <td className="py-2.5 px-3 text-slate-400 font-semibold font-sarabun text-xs">{idx + 1}</td>
                             <td className="py-2.5 px-3 font-bold text-slate-900">{item.drugName}</td>
-                            <td className="py-2.5 px-3 text-center text-slate-450 font-semibold whitespace-nowrap font-mono">{item.stockCode}</td>
-                            <td className="py-2.5 px-3 text-center font-black text-slate-900 text-xs">{item.quantity} units</td>
-                            <td className="py-2.5 px-3 text-right font-semibold">฿{item.unitPrice.toLocaleString()}</td>
-                            <td className="py-2.5 px-3 text-right font-bold text-slate-900">฿{item.totalPrice.toLocaleString()}</td>
+                            <td className="py-2.5 px-3 text-center text-slate-450 font-bold whitespace-nowrap font-sarabun text-xs">{item.stockCode}</td>
+                            <td className="py-2.5 px-3 text-center font-black text-slate-900 text-sm font-sarabun">{item.quantity} units</td>
+                            <td className="py-2.5 px-3 text-right font-bold font-sarabun text-xs">฿{item.unitPrice.toLocaleString()}</td>
+                            <td className="py-2.5 px-3 text-right font-black text-slate-900 font-sarabun">฿{item.totalPrice.toLocaleString()}</td>
                           </tr>
                         ))}
                         <tr className="bg-amber-50/20 font-bold border-t border-slate-250">
                           <td colSpan={5} className="py-3 px-3 text-right uppercase text-[9px] text-slate-500 tracking-wider">
                             Total Valuation / ยอดมูลค่ารักษาสุทธิ:
                           </td>
-                          <td className="py-3 px-3 text-right text-amber-950 text-[15px] font-black">
+                          <td className="py-3 px-3 text-right text-amber-950 text-[15px] font-black font-sarabun">
                             ฿{singleBooking.totalAmount.toLocaleString()}
                           </td>
                         </tr>
@@ -437,13 +465,31 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
                   </div>
                 </div>
 
+                {/* Regimen and Patient Note if present */}
+                {(singleBooking.regimen || singleBooking.note) && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-lg bg-indigo-50/40 border border-indigo-150/60 text-xs text-slate-700 font-sans">
+                    {singleBooking.regimen && (
+                      <div>
+                        <span className="text-indigo-600 font-extrabold uppercase text-[8.5px] tracking-wider block mb-1">Treatment Regimen / สูตรยานัดพบ</span>
+                        <span className="font-black text-indigo-950 block bg-indigo-100/50 border border-indigo-200/50 px-2 py-1 rounded inline-block font-sarabun">{singleBooking.regimen}</span>
+                      </div>
+                    )}
+                    {singleBooking.note && (
+                      <div>
+                        <span className="text-slate-500 font-extrabold uppercase text-[8.5px] tracking-wider block mb-1">Extra Instructions / รายละเอียดบันทึกเพิ่มเติม</span>
+                        <p className="text-slate-755 font-medium text-[11px] block whitespace-pre-wrap">{singleBooking.note}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Friendly Client Guidance Notes */}
                 <div className="p-3 bg-amber-50/75 rounded-lg border border-amber-200 text-[10px] text-amber-950/90 leading-relaxed font-medium space-y-1 page-break-inside-avoid">
                   <p className="font-extrabold text-[10.5px] uppercase tracking-wide text-amber-900">
                     ⚠️ Dear Patient Notice / คำแนะนำสำหรับคนไข้ในการบริการ:
                   </p>
-                  <p>1. Please hand over this receipt printed copy or slide display to the outpatient pharmacy dispensing window on {formatDateToDMY(singleBooking.dateOfUse)} to complete your physical verification and pick up your reservation.</p>
-                  <p className="italic text-slate-500">1. กรุณานำใบรับที่พิมพ์นี้ (หรือแสดงรูปหน้าจอ) มาติดต่อห้องยาผู้ป่วยนอก ณ วันที่ {formatDateToDMY(singleBooking.dateOfUse)} เพื่อความรวดเร็วในการรับบริการ</p>
+                  <p>1. Please hand over this receipt printed copy or slide display to the outpatient pharmacy dispensing window on <span className="font-sarabun font-bold">{formatDateToDMY(singleBooking.dateOfUse)}</span> to complete your physical verification and pick up your reservation.</p>
+                  <p className="italic text-slate-550">1. กรุณานำใบรับที่พิมพ์นี้ (หรือแสดงรูปหน้าจอ) มาติดต่อห้องยาผู้ป่วยนอก ณ วันที่ <span className="font-sarabun font-bold">{formatDateToDMY(singleBooking.dateOfUse)}</span> เพื่อความรวดเร็วในการรับบริการ</p>
                 </div>
               </div>
             )}
@@ -545,91 +591,101 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
                         </div>
 
                         {/* Sourcing summary totals for this room */}
-                        <div className="space-y-1.5 pl-1">
-                          <p className="text-[9.5px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-100 pb-1 font-sans">
-                            📝 {language === 'TH' ? `สรุปยอดเบิกคลังสำรองคลังประจำ: ${displayLocLabel}` : `Sourcing Summary Totals: ${displayLocLabel}`}
-                          </p>
-                          <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
-                            <table className="w-full text-left border-collapse print-compact-table text-[10px]">
-                              <thead>
-                                <tr className="bg-slate-50 text-slate-550 font-bold uppercase text-[8px] border-b border-slate-200">
-                                  <th className="py-1 px-3">Medicine Description / รหัสเวชภัณฑ์</th>
-                                  <th className="py-1 px-3 text-center whitespace-nowrap">Stock Code / SKU</th>
-                                  <th className="py-1 px-3 text-center">Class / หมวดคิว</th>
-                                  <th className="py-1 px-3 text-right">Demand Quantity / รวมสุทธิ</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100 text-slate-700">
-                                {locSummaryList.map((item, idx) => (
-                                  <tr key={idx} className="bg-white">
-                                    <td className="py-1 px-3 font-semibold text-slate-900">{item.name}</td>
-                                    <td className="py-1 px-3 text-center text-slate-500 font-bold font-mono whitespace-nowrap">{item.sku}</td>
-                                    <td className="py-1 px-3 text-center">
-                                      <span className="px-1.5 bg-slate-100 text-slate-600 font-bold text-[8px] uppercase rounded border border-slate-200 leading-none">
-                                        {item.category}
-                                      </span>
-                                    </td>
-                                    <td className="py-1 px-3 text-right font-black text-indigo-900 text-xs">
-                                      {item.qty} units
-                                    </td>
+                        {currentUser?.role !== 'Pharmacist' && currentUser?.role !== 'Pharmacist Assistant' && (
+                          <div className="space-y-1.5 pl-1">
+                            <p className="text-[9.5px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-100 pb-1 font-sans">
+                              📝 {language === 'TH' ? `สรุปยอดเบิกคลังสำรองคลังประจำ: ${displayLocLabel}` : `Sourcing Summary Totals: ${displayLocLabel}`}
+                            </p>
+                            <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
+                              <table className="w-full text-left border-collapse print-compact-table text-[10px]">
+                                <thead>
+                                  <tr className="bg-slate-50 text-slate-550 font-bold uppercase text-[8px] border-b border-slate-200">
+                                    <th className="py-1 px-3">Medicine Description / รหัสเวชภัณฑ์</th>
+                                    <th className="py-1 px-3 text-center whitespace-nowrap">Stock Code / SKU</th>
+                                    <th className="py-1 px-3 text-center">Class / หมวดคิว</th>
+                                    <th className="py-1 px-3 text-right">Demand Quantity / รวมสุทธิ</th>
                                   </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 text-slate-700">
+                                  {locSummaryList.map((item, idx) => (
+                                    <tr key={idx} className="bg-white">
+                                      <td className="py-1 px-3 font-semibold text-slate-900">{item.name}</td>
+                                      <td className="py-1 px-3 text-center text-slate-500 font-bold font-sarabun whitespace-nowrap text-xs">{item.sku}</td>
+                                      <td className="py-1 px-3 text-center">
+                                        <span className="px-1.5 bg-slate-100 text-slate-600 font-extrabold text-[8px] uppercase rounded border border-slate-200 leading-none">
+                                          {item.category}
+                                        </span>
+                                      </td>
+                                      <td className="py-1 px-3 text-right font-black text-indigo-900 text-sm font-sarabun">
+                                        {item.qty}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
                           </div>
-                        </div>
+                        )}
 
                         {/* Individual Patient Allocations for this room */}
-                        <div className="space-y-1.5 pl-1">
-                          <p className="text-[9.5px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-101 pb-1 font-sans">
-                            👥 {language === 'TH' ? `รายละเอียดคนไข้แยกรายบุคคลคลังประจำ: ${displayLocLabel}` : `Individual Patient Allocations: ${displayLocLabel}`}
-                          </p>
-                          <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
-                            <table className="w-full text-left border-collapse print-compact-table text-[10px]">
-                              <thead>
-                                <tr className="bg-slate-50 text-slate-550 font-bold uppercase text-[8px] border-b border-slate-200">
-                                  <th className="py-1 px-2 text-center w-8 font-semibold">#</th>
-                                  <th className="py-1 px-2 text-center whitespace-nowrap min-w-[105px]">HN</th>
-                                  <th className="py-1 px-2.5">{language === 'TH' ? 'ชื่อผู้ป่วย' : 'Patient Name'}</th>
-                                  <th className="py-1 px-2 text-center font-bold whitespace-nowrap min-w-[85px]">{language === 'TH' ? 'วันที่ต้องใช้' : 'Date of Use'}</th>
-                                  <th className="py-1 px-2">{language === 'TH' ? 'ชื่อยาเวชภัณฑ์สำรอง' : 'Drug Name'}</th>
-                                  <th className="py-1 px-2 text-center whitespace-nowrap min-w-[95px]">Stock Code</th>
-                                  <th className="py-1 px-2 text-right">Qty</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100 text-slate-700">
-                                {locBookings.flatMap((b) => 
-                                  b.medications.map((m) => ({
-                                    hn: b.hn,
-                                    patientName: b.patientName,
-                                    dateOfUse: b.dateOfUse,
-                                    drugName: m.drugName,
-                                    stockCode: m.stockCode,
-                                    quantity: m.quantity
-                                  }))
-                                ).map((row, rIdx) => (
-                                  <tr key={rIdx} className="bg-white hover:bg-slate-50/10 font-medium">
-                                    <td className="py-1 px-2 text-center text-slate-400 font-semibold">{rIdx + 1}</td>
-                                    <td className="py-1 px-2 text-center font-bold text-slate-800 font-mono whitespace-nowrap min-w-[105px] tracking-wide">{row.hn}</td>
-                                    <td className="py-1 px-2.5 font-bold text-slate-900 break-words whitespace-normal break-all min-w-[120px] max-w-[160px]">{row.patientName}</td>
-                                    <td className="py-1 px-2 text-center text-slate-600 font-bold whitespace-nowrap font-mono">{formatDateToDMY(row.dateOfUse)}</td>
-                                    <td className="py-1 px-2 font-black text-slate-900 break-words whitespace-normal break-all min-w-[140px] max-w-[200px]">{row.drugName}</td>
-                                    <td className="py-1 px-2 text-center text-slate-500 font-semibold font-mono whitespace-nowrap">{row.stockCode}</td>
-                                    <td className="py-1 px-2 text-right font-black text-blue-900 text-xs whitespace-nowrap">{row.quantity}</td>
+                        {currentUser?.role !== 'Pharmacy Stock Clerk' && (
+                          <div className="space-y-1.5 pl-1">
+                            <p className="text-[9.5px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-101 pb-1 font-sans">
+                              👥 {language === 'TH' ? `รายละเอียดคนไข้แยกรายบุคคลคลังประจำ: ${displayLocLabel}` : `Individual Patient Allocations: ${displayLocLabel}`}
+                            </p>
+                            <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
+                              <table className="w-full text-left border-collapse print-compact-table text-[10px]">
+                                <thead>
+                                  <tr className="bg-slate-50 text-slate-550 font-bold uppercase text-[8px] border-b border-slate-200">
+                                    <th className="py-1 px-2 text-center w-8 font-semibold">#</th>
+                                    <th className="py-1 px-2 text-center whitespace-nowrap min-w-[105px]">HN</th>
+                                    <th className="py-1 px-2.5">{language === 'TH' ? 'ชื่อผู้ป่วย' : 'Patient Name'}</th>
+                                    <th className="py-1 px-2 text-center font-bold whitespace-nowrap min-w-[85px]">{language === 'TH' ? 'วันที่ต้องใช้' : 'Date of Use'}</th>
+                                    <th className="py-1 px-2">{language === 'TH' ? 'ชื่อยาเวชภัณฑ์สำรอง' : 'Drug Name'}</th>
+                                    <th className="py-1 px-2 text-right">Qty</th>
                                   </tr>
-                                ))}
-                                <tr className="bg-slate-50 font-bold border-t border-slate-200">
-                                  <td colSpan={6} className="py-1.5 px-3 text-right uppercase text-[8px] text-slate-500 tracking-wider font-sans whitespace-nowrap">
-                                    {language === 'TH' ? 'รวมยอดจัดสรรห้องนี้:' : 'Total Quantity For Location:'}
-                                  </td>
-                                  <td className="py-1.5 px-3 text-right font-black text-slate-900 text-xs font-mono whitespace-nowrap">
-                                    {locSummaryList.reduce((sum, item) => sum + item.qty, 0)} Units
-                                  </td>
-                                </tr>
-                              </tbody>
-                            </table>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 text-slate-700">
+                                  {locBookings.flatMap((b) => 
+                                    b.medications.map((m) => ({
+                                      hn: b.hn,
+                                      patientName: b.patientName,
+                                      dateOfUse: b.dateOfUse,
+                                      drugName: m.drugName,
+                                      stockCode: m.stockCode,
+                                      quantity: m.quantity,
+                                      regimen: b.regimen
+                                    }))
+                                  ).map((row, rIdx) => (
+                                    <tr key={rIdx} className="bg-white hover:bg-slate-50/10 font-medium">
+                                      <td className="py-1 px-2 text-center text-slate-400 font-sarabun font-semibold text-[9.5px]">{rIdx + 1}</td>
+                                      <td className="py-1 px-2 text-center font-bold text-slate-750 font-sarabun text-[10.5px] whitespace-nowrap min-w-[105px] tracking-wide">{row.hn}</td>
+                                      <td className="py-1 px-2.5 font-extrabold text-slate-950 text-[11.5px] break-words whitespace-normal break-all min-w-[120px] max-w-[160px]">{row.patientName}</td>
+                                      <td className="py-1 px-2 text-center text-slate-600 font-bold whitespace-nowrap font-sarabun text-[10px]">{formatDateToDMY(row.dateOfUse)}</td>
+                                      <td className="py-1 px-2 font-black text-slate-900 break-words whitespace-normal break-all min-w-[140px] max-w-[200px]">
+                                        {row.drugName}
+                                        {row.regimen && (
+                                          <span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-sm text-[9px] px-1 py-0.5 ml-1.5 whitespace-nowrap inline-block">
+                                            ({row.regimen})
+                                          </span>
+                                        )}
+                                      </td>
+                                      <td className="py-1 px-2 text-right font-black text-blue-900 text-[13px] font-sarabun whitespace-nowrap">{row.quantity}</td>
+                                    </tr>
+                                  ))}
+                                  <tr className="bg-slate-50 font-bold border-t border-slate-200">
+                                    <td colSpan={5} className="py-1.5 px-3 text-right uppercase text-[8px] text-slate-500 tracking-wider font-sans whitespace-nowrap">
+                                      {language === 'TH' ? 'รวมยอดจัดสรรห้องนี้:' : 'Total Quantity For Location:'}
+                                    </td>
+                                    <td className="py-1.5 px-3 text-right font-black text-slate-900 text-sm font-sarabun whitespace-nowrap">
+                                      {locSummaryList.reduce((sum, item) => sum + item.qty, 0)}
+                                    </td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
                     );
                   });
@@ -712,20 +768,20 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
           <div className="grid grid-cols-2 gap-4 mt-6 text-xs text-slate-600 font-medium">
             <div>
               <p className="text-slate-400 uppercase font-bold text-[9px] tracking-wider">Booking ID</p>
-              <p className="font-bold text-slate-800 text-sm">{singleBooking.id}</p>
+              <p className="font-bold text-slate-800 text-sm font-sarabun">{singleBooking.id}</p>
             </div>
             <div className="text-right">
               <p className="text-slate-400 uppercase font-bold text-[9px] tracking-wider">{t.bookingDate}</p>
-              <p className="font-semibold text-slate-755 text-[11px]">{formatDateToDMY(singleBooking.bookingDate)}</p>
+              <p className="font-semibold text-slate-755 text-[11px] font-sarabun">{formatDateToDMY(singleBooking.bookingDate)}</p>
             </div>
             <div>
               <p className="text-slate-400 uppercase font-bold text-[9px] tracking-wider">{t.patientName}</p>
               <p className="font-bold text-slate-805">{singleBooking.patientName}</p>
-              <p className="text-[10px] text-slate-450 font-semibold font-mono whitespace-nowrap">HN: {singleBooking.hn}</p>
+              <p className="text-[11px] text-slate-450 font-bold font-sarabun whitespace-nowrap">HN: {singleBooking.hn}</p>
             </div>
             <div className="text-right">
               <p className="text-slate-400 uppercase font-bold text-[9px] tracking-wider">{t.dateOfUse}</p>
-              <p className="font-bold text-slate-800 text-[11px]">{formatDateToDMY(singleBooking.dateOfUse)}</p>
+              <p className="font-bold text-slate-800 text-[11px] font-sarabun">{formatDateToDMY(singleBooking.dateOfUse)}</p>
               <p className="text-[10px] text-slate-450 font-bold uppercase">{singleBooking.department}</p>
             </div>
           </div>
@@ -738,7 +794,7 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
                   <th className="p-3">Medicine Description</th>
                   <th className="p-3">stock code</th>
                   <th className="p-3 text-center">Qty</th>
-                  <th className="p-3 text-right">Unit Rate</th>
+                  <th className="p-3 text-right">Unit Price</th>
                   <th className="p-3 text-right">Subtotal</th>
                 </tr>
               </thead>
@@ -746,19 +802,37 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
                 {singleBooking.medications.map((item, idx) => (
                   <tr key={idx} className="font-medium text-slate-650 hover:bg-slate-55/15">
                     <td className="p-3 font-semibold text-slate-800">{item.drugName}</td>
-                    <td className="p-3 text-slate-450 font-bold">{item.stockCode}</td>
-                    <td className="p-3 text-center font-bold text-sm text-slate-850">{item.quantity}</td>
-                    <td className="p-3 text-right font-semibold">฿{item.unitPrice.toLocaleString()}</td>
-                    <td className="p-3 text-right font-bold text-slate-900">฿{item.totalPrice.toLocaleString()}</td>
+                    <td className="p-3 text-slate-450 font-bold font-sarabun">{item.stockCode}</td>
+                    <td className="p-3 text-center font-bold text-sm text-slate-850 font-sarabun">{item.quantity}</td>
+                    <td className="p-3 text-right font-semibold font-sarabun">฿{item.unitPrice.toLocaleString()}</td>
+                    <td className="p-3 text-right font-bold text-slate-900 font-sarabun">฿{item.totalPrice.toLocaleString()}</td>
                   </tr>
                 ))}
                 <tr className="bg-slate-50/70 font-bold text-slate-850">
                   <td colSpan={4} className="p-3 text-right text-slate-500 tracking-wider">TOTAL AMOUNT DUE:</td>
-                  <td className="p-3 text-right text-blue-900 text-sm font-bold">฿{singleBooking.totalAmount.toLocaleString()}</td>
+                  <td className="p-3 text-right text-blue-900 text-sm font-bold font-sarabun">฿{singleBooking.totalAmount.toLocaleString()}</td>
                 </tr>
               </tbody>
             </table>
           </div>
+
+          {/* Regimen and Notes if present */}
+          {(singleBooking.regimen || singleBooking.note) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 p-4 rounded-lg bg-indigo-50/40 border border-indigo-100 text-xs text-slate-700">
+              {singleBooking.regimen && (
+                <div>
+                  <span className="text-indigo-600 font-bold uppercase text-[9px] tracking-wider block mb-1">Treatment Regimen</span>
+                  <span className="font-extrabold text-indigo-950 bg-white border border-indigo-200/50 px-2 py-0.5 rounded inline-block">{singleBooking.regimen}</span>
+                </div>
+              )}
+              {singleBooking.note && (
+                <div>
+                  <span className="text-slate-500 font-bold uppercase text-[9px] tracking-wider block mb-1">Special Notes / Directions</span>
+                  <p className="text-slate-700 bg-white border border-slate-200/50 rounded p-2 text-[11px] font-medium whitespace-pre-wrap">{singleBooking.note}</p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Verification labels */}
           <div className="grid grid-cols-2 gap-4 mt-6 p-4 rounded-lg border border-slate-100 bg-slate-50/60 text-[10px] text-slate-505">
@@ -800,7 +874,7 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
             className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold uppercase flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
           >
             <Printer className="w-4 h-4" />
-            {language === 'TH' ? 'เบิกเวชภัณฑ์ค้างยากองใบรายงาน' : 'Open HTML Print & PDF'}
+            {language === 'TH' ? 'ปริ้นใบรายงาน PDF' : 'Open HTML Print & PDF'}
           </button>
         )}
       </div>
@@ -901,7 +975,9 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
             }}
             className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-xs font-bold focus:outline-hidden cursor-pointer hover:bg-slate-100 transition-colors uppercase shadow-xs text-slate-700"
           >
-            <option value="All">{language === 'TH' ? 'แสดงทั้งหมด (All)' : 'All Locations'}</option>
+            {currentUser?.role !== 'Pharmacy Stock Clerk' && (
+              <option value="All">{language === 'TH' ? 'แสดงทั้งหมด (All)' : 'All Locations'}</option>
+            )}
             {uniqueLocations.map(loc => (
               <option key={loc} value={loc}>{loc}</option>
             ))}
@@ -953,98 +1029,108 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
             </p>
           </div>
 
-          <div className="space-y-3 bg-slate-50/80 p-5 rounded-lg border border-slate-200">
-            <h3 className="font-bold text-[10px] uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-              <Filter className="w-4 h-4 text-slate-500" />
-              {language === 'TH' ? 'ยอดสรุปเบิกเวชภัณฑ์รวมตามรหัสคลัง (Requisition Inventory Totals)' : 'Warehouse Sourcing Order summary totals'}
-            </h3>
+          {currentUser?.role !== 'Pharmacist' && currentUser?.role !== 'Pharmacist Assistant' && (
+            <div className="space-y-3 bg-slate-50/80 p-5 rounded-lg border border-slate-200">
+              <h3 className="font-bold text-[10px] uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                <Filter className="w-4 h-4 text-slate-500" />
+                {language === 'TH' ? 'ยอดสรุปเบิกเวชภัณฑ์รวมตามรหัสคลัง (Requisition Inventory Totals)' : 'Warehouse Sourcing Order summary totals'}
+              </h3>
 
-            <table className="w-full text-xs text-left border-collapse bg-white rounded-lg border border-slate-200 overflow-hidden">
-              <thead>
-                <tr className="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider text-[9px] border-b border-slate-200 font-bold">
-                  <th className="p-3">Generic / Medicine Trade Name</th>
-                  <th className="p-3 whitespace-nowrap">Stock Code</th>
-                  <th className="p-3">Category</th>
-                  <th className="p-3 text-right">Unified Sourcing Demand (Qty)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
-                {summaryList.map((item, index) => (
-                  <tr key={index} className="text-slate-655 font-medium hover:bg-slate-50/50 bg-white">
-                    <td className="p-3 font-semibold text-slate-800">{item.name}</td>
-                    <td className="p-3 font-bold text-slate-500 font-mono whitespace-nowrap">{item.sku}</td>
-                    <td className="p-3">
-                      <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase border ${
-                        item.category === 'Oncology' ? 'bg-red-50 text-red-600 border-red-105' : 'bg-blue-50 text-blue-600 border-blue-105'
-                      }`}>
-                        {item.category}
-                      </span>
-                    </td>
-                    <td className="p-3 text-right font-bold text-blue-700 text-sm">{item.qty} units</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Detailed patient medication layout - as requested "หน้า report drug detail ให้ขึ้นเป็นรายชื่อคนไข้แยกราย-ยาที่ใช้ ด้วย" */}
-          <div className="space-y-3 bg-slate-50/80 p-5 rounded-lg border border-slate-200">
-            <h3 className="font-bold text-[10px] uppercase tracking-wider text-slate-700 flex items-center justify-between">
-              <span className="flex items-center gap-1.5">
-                <FileText className="w-4 h-4 text-blue-500" />
-                {language === 'TH' ? 'รายละเอียดจัดสรรยาจำเพาะเจาะจงรายคิวเวชภัณฑ์ (Report Drug Details)' : 'Report Drug Details (Individual Allocations)'}
-              </span>
-              <span className="text-[10px] text-slate-400 font-bold bg-white px-2 py-0.5 rounded border border-slate-200 font-mono">
-                {activeBookings.flatMap(b => b.medications).length} lines
-              </span>
-            </h3>
-
-            <div className="overflow-x-auto border border-slate-200 bg-white rounded-lg">
-              <table className="w-full text-xs text-left border-collapse">
+              <table className="w-full text-xs text-left border-collapse bg-white rounded-lg border border-slate-200 overflow-hidden">
                 <thead>
-                  <tr className="bg-slate-50 text-slate-550 font-semibold uppercase tracking-wider text-[9px] border-b border-slate-200">
-                    <th className="p-3 text-center w-12">#</th>
-                    <th className="p-3">{language === 'TH' ? 'คนไข้ / รหัส HN' : 'Patient / HN'}</th>
-                    <th className="p-3 text-center whitespace-nowrap">{language === 'TH' ? 'วันที่ต้องใช้' : 'Date of Use'}</th>
-                    <th className="p-3">{language === 'TH' ? 'ชื่อยาเวชภัณฑ์สำรอง' : 'Drug Name'}</th>
-                    <th className="p-3 text-center font-bold whitespace-nowrap">Stock Code</th>
-                    <th className="p-3 text-center whitespace-nowrap">{language === 'TH' ? 'ห้องยา' : 'Location'}</th>
-                    <th className="p-3 text-right">Qty</th>
+                  <tr className="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider text-[9px] border-b border-slate-200 font-bold font-sans">
+                    <th className="p-3">Generic / Medicine Trade Name</th>
+                    <th className="p-3 whitespace-nowrap">Stock Code</th>
+                    <th className="p-3">Category</th>
+                    <th className="p-3 text-right">Unified Sourcing Demand (Qty)</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-101 text-slate-700">
-                  {activeBookings.flatMap((b) => 
-                    b.medications.map((m) => ({
-                      hn: b.hn,
-                      patientName: b.patientName,
-                      dateOfUse: b.dateOfUse,
-                      pharmacyLocation: b.pharmacyLocation,
-                      drugName: m.drugName,
-                      stockCode: m.stockCode,
-                      quantity: m.quantity
-                    }))
-                  ).map((row, idx) => (
-                    <tr key={idx} className="font-medium hover:bg-slate-50/50 bg-white">
-                      <td className="p-3 text-center text-slate-400 font-mono">{idx + 1}</td>
+                <tbody className="divide-y divide-slate-101 text-slate-700 flex-none h-auto">
+                  {summaryList.map((item, index) => (
+                    <tr key={index} className="text-slate-655 font-medium hover:bg-slate-50/50 bg-white">
+                      <td className="p-3 font-semibold text-slate-800">{item.name}</td>
+                      <td className="p-3 font-bold text-slate-500 font-mono whitespace-nowrap">{item.sku}</td>
                       <td className="p-3">
-                        <span className="font-bold text-slate-900 block">{row.patientName}</span>
-                        <span className="text-[10px] text-slate-450 block font-mono font-bold whitespace-nowrap">HN: {row.hn}</span>
-                      </td>
-                      <td className="p-3 text-center text-slate-600 font-bold whitespace-nowrap font-mono">{formatDateToDMY(row.dateOfUse)}</td>
-                      <td className="p-3 font-semibold text-slate-800">{row.drugName}</td>
-                      <td className="p-3 text-center text-slate-500 font-mono text-[11px] font-semibold whitespace-nowrap">{row.stockCode}</td>
-                      <td className="p-3 text-center whitespace-nowrap">
-                        <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md font-bold text-[10px] border border-slate-200 font-mono uppercase">
-                          {row.pharmacyLocation || '-'}
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase border ${
+                          item.category === 'Oncology' ? 'bg-red-50 text-red-600 border-red-105' : 'bg-blue-50 text-blue-600 border-blue-105'
+                        }`}>
+                          {item.category}
                         </span>
                       </td>
-                      <td className="p-3 text-right font-black text-indigo-950 text-sm whitespace-nowrap">{row.quantity}</td>
+                      <td className="p-3 text-right font-bold text-blue-700 text-sm">{item.qty} units</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </div>
+          )}
+
+          {/* Detailed patient medication layout - as requested "หน้า report drug detail ให้ขึ้นเป็นรายชื่อคนไข้แยกราย-ยาที่ใช้ ด้วย" */}
+          {currentUser?.role !== 'Pharmacy Stock Clerk' && (
+            <div className="space-y-3 bg-slate-50/80 p-5 rounded-lg border border-slate-200">
+              <h3 className="font-bold text-[10px] uppercase tracking-wider text-slate-700 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <FileText className="w-4 h-4 text-blue-500" />
+                  {language === 'TH' ? 'รายละเอียดจัดสรรยาจำเพาะเจาะจงรายคิวเวชภัณฑ์ (Report Drug Details)' : 'Report Drug Details (Individual Allocations)'}
+                </span>
+                <span className="text-[10px] text-slate-400 font-bold bg-white px-2 py-0.5 rounded border border-slate-200 font-mono">
+                  {activeBookings.flatMap(b => b.medications).length} lines
+                </span>
+              </h3>
+
+              <div className="overflow-x-auto border border-slate-200 bg-white rounded-lg">
+                <table className="w-full text-xs text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-550 font-semibold uppercase tracking-wider text-[9px] border-b border-slate-200">
+                      <th className="p-3 text-center w-12">#</th>
+                      <th className="p-3">{language === 'TH' ? 'คนไข้ / รหัส HN' : 'Patient / HN'}</th>
+                      <th className="p-3 text-center whitespace-nowrap">{language === 'TH' ? 'วันที่ต้องใช้' : 'Date of Use'}</th>
+                      <th className="p-3">{language === 'TH' ? 'ชื่อยาเวชภัณฑ์สำรอง' : 'Drug Name'}</th>
+                      <th className="p-3 text-center whitespace-nowrap">{language === 'TH' ? 'ห้องยา' : 'Location'}</th>
+                      <th className="p-3 text-right">Qty</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-101 text-slate-700">
+                    {activeBookings.flatMap((b) => 
+                      b.medications.map((m) => ({
+                        hn: b.hn,
+                        patientName: b.patientName,
+                        dateOfUse: b.dateOfUse,
+                        pharmacyLocation: b.pharmacyLocation,
+                        drugName: m.drugName,
+                        stockCode: m.stockCode,
+                        quantity: m.quantity,
+                        regimen: b.regimen
+                      }))
+                    ).map((row, idx) => (
+                      <tr key={idx} className="font-medium hover:bg-slate-50/50 bg-white">
+                        <td className="p-3 text-center text-slate-400 font-sarabun font-semibold text-[11px]">{idx + 1}</td>
+                        <td className="p-3">
+                          <span className="font-bold text-slate-900 block">{row.patientName}</span>
+                          <span className="text-[10px] text-slate-450 block font-sarabun font-extrabold whitespace-nowrap">HN: {row.hn}</span>
+                        </td>
+                        <td className="p-3 text-center text-slate-600 font-bold whitespace-nowrap font-sarabun text-xs">{formatDateToDMY(row.dateOfUse)}</td>
+                        <td className="p-3 font-semibold text-slate-800">
+                          {row.drugName}
+                          {row.regimen && (
+                            <span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-sm text-[9px] px-1 py-0.5 ml-1.5 whitespace-nowrap inline-block">
+                              ({row.regimen})
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3 text-center whitespace-nowrap">
+                          <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md font-bold text-[10px] border border-slate-200 font-sarabun uppercase">
+                            {row.pharmacyLocation || '-'}
+                          </span>
+                        </td>
+                        <td className="p-3 text-right font-black text-indigo-950 text-sm font-sarabun whitespace-nowrap">{row.quantity}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
