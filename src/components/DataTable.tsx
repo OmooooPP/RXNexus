@@ -168,7 +168,7 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
                             </span>
                           )}
                         </div>
-                        <div className="flex gap-2 items-center text-[10px] text-slate-400 mt-1">
+                        <div className="flex flex-wrap gap-2 items-center text-[10px] text-slate-400 mt-1">
                           <span className="font-mono bg-slate-100/90 text-slate-700 px-1.5 py-0.5 rounded text-[9.5px] font-bold tracking-wider whitespace-nowrap inline-block">HN: {b.hn}</span>
                           <span>•</span>
                           <span className="uppercase">{b.medications[0]?.priceType || 'OPD'}</span>
@@ -197,6 +197,19 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
                           <div className="text-right text-[10px] font-bold text-blue-600">
                             Total: ฿{b.totalAmount.toLocaleString()}
                           </div>
+                          {b.regimen && (
+                            <div className="text-left mt-1.5 pt-1.5 border-t border-slate-150">
+                              <span className="font-bold text-indigo-800 bg-indigo-50 border border-indigo-150 px-1.5 py-0.5 rounded-sm text-[9.5px] inline-block font-sans">
+                                Regimen: <span className="font-medium text-indigo-950">{b.regimen}</span>
+                              </span>
+                            </div>
+                          )}
+                          {b.note && (
+                            <div className="text-left mt-1.5 bg-slate-100/50 p-1.5 rounded border border-slate-200/50 text-[10.5px]">
+                              <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">Note:</span>
+                              <span className="text-slate-650 font-medium break-words block whitespace-pre-wrap">{b.note}</span>
+                            </div>
+                          )}
                         </div>
                       </td>
 
