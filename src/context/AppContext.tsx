@@ -472,6 +472,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         medications: b.medications || [],
         totalAmount: Number(b.totalAmount) || 0,
         prescriptionImage: b.prescriptionImage || '',
+        regimen: b.regimen || '',
+        note: b.note || '',
         staff: {
           doctor: b.staff?.doctor || '',
           nurse: b.staff?.nurse || '',
@@ -528,6 +530,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       if (b.department) updateData.department = b.department;
       if (b.pharmacyLocation !== undefined) updateData.pharmacyLocation = b.pharmacyLocation;
       if (b.mode) updateData.mode = b.mode;
+      if (b.regimen !== undefined) updateData.regimen = b.regimen;
+      if (b.note !== undefined) updateData.note = b.note;
       if (b.medications) updateData.medications = b.medications;
       if (b.totalAmount !== undefined) updateData.totalAmount = b.totalAmount;
       if (b.prescriptionImage !== undefined) updateData.prescriptionImage = b.prescriptionImage;
