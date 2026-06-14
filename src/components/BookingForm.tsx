@@ -35,7 +35,7 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
   const [hn, setHn] = useState(existingRecord ? existingRecord.hn : '');
   const [patientName, setPatientName] = useState(existingRecord ? existingRecord.patientName : '');
   const [dateOfUse, setDateOfUse] = useState(existingRecord ? existingRecord.dateOfUse : new Date().toISOString().split('T')[0]);
-  const [department, setDepartment] = useState(existingRecord ? existingRecord.department : 'Oncology');
+  const [department, setDepartment] = useState(existingRecord ? existingRecord.department : '');
   const [pharmacyLocation, setPharmacyLocation] = useState(existingRecord ? existingRecord.pharmacyLocation || '' : '');
   const [patientType, setPatientType] = useState<'employee' | 'opd' | 'ipd' | 'it'>(
     existingRecord && existingRecord.medications.length > 0 
@@ -127,17 +127,21 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
     setPickerDrugType(mode);
   }, [mode]);
 
-  // Filter drugs directory based on selected Class Mode (General/Oncology)
-  const filteredDrugs = drugs.filter((d) => d.type === pickerDrugType && !d.deleteRequested);
+  const allActiveDrugs = drugs.filter((d) => !d.deleteRequested);
+
+  // If there's a search query, search across ALL categories. If empty, just show the selected category.
+  const filteredDrugsBySearch = allActiveDrugs.filter((d) => {
+    if (drugSearchQuery) {
+      return (
+        d.name.toLowerCase().includes(drugSearchQuery.toLowerCase()) ||
+        d.stockCode.toLowerCase().includes(drugSearchQuery.toLowerCase())
+      );
+    }
+    return d.type === pickerDrugType;
+  });
 
   // Query selected drug obj
-  const selectedDrugObj = filteredDrugs.find((d) => d.id === activeDrugId);
-
-  // Filter drugs directory based on typing query in select
-  const filteredDrugsBySearch = filteredDrugs.filter((d) =>
-    d.name.toLowerCase().includes((drugSearchQuery || '').toLowerCase()) ||
-    d.stockCode.toLowerCase().includes((drugSearchQuery || '').toLowerCase())
-  );
+  const selectedDrugObj = allActiveDrugs.find((d) => d.id === activeDrugId);
 
   // Reset selected drugs catalog on mode flip
   useEffect(() => {
@@ -486,6 +490,7 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
             onChange={(e) => setDepartment(e.target.value)}
             className="w-full bg-slate-50 border border-slate-200 px-2.5 py-2 md:px-3 md:py-2.5 rounded-lg text-xs md:text-sm font-medium focus:outline-hidden focus:border-blue-500 focus:bg-white"
           >
+            <option value="" disabled>-- Select Department --</option>
             <option value="Oncology">Oncology</option>
             <option value="Medicine Subboard">Medicine Subboard</option>
             <option value="Diabetic & Endocrine">Diabetic & Endocrine</option>
@@ -670,6 +675,7 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
                         onMouseDown={() => {
                           setActiveDrugId(d.id);
                           setDrugSearchQuery(d.name);
+                          setPickerDrugType(d.type);
                           setIsDropdownOpen(false);
                         }}
                         className={`p-2.5 text-xs text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer transition-colors text-left font-sans ${
