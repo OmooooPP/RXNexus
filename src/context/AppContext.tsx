@@ -463,7 +463,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
       const newBooking: Booking = {
         id: bookingId,
-        bookingDate: today,
+        bookingDate: b.bookingDate || today,
         hn: b.hn || '',
         patientName: b.patientName || '',
         dateOfUse: b.dateOfUse || today,
@@ -526,6 +526,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const updateData: any = {};
       if (b.hn) updateData.hn = b.hn;
       if (b.patientName) updateData.patientName = b.patientName;
+      if (b.bookingDate) updateData.bookingDate = b.bookingDate;
       if (b.dateOfUse) updateData.dateOfUse = b.dateOfUse;
       if (b.department) updateData.department = b.department;
       if (b.pharmacyLocation !== undefined) updateData.pharmacyLocation = b.pharmacyLocation;
@@ -637,13 +638,47 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const verifyClerk = async (id: string) => {
     setLoading(true);
     try {
+      const booking = bookings.find((b) => b.id === id);
+      if (!booking) {
+        throw new Error('Booking not found');
+      }
+
       const docRef = doc(db, 'bookings', id);
+      const currentClerkStatus = booking.clerkVerification?.status || 'Pending';
+
+      const baseClerk = booking.clerkVerification || {
+        status: 'Pending',
+        verifiedBy: '',
+        verifiedAt: '',
+        orderedBy: '',
+        orderedAt: ''
+      };
+
+      const nextClerkVerification = { ...baseClerk };
+      let actionDetails = '';
+      let successMsg = '';
+      let actionName = 'Stock Delivered';
+
+      if (currentClerkStatus === 'Pending') {
+        nextClerkVerification.status = 'Accepted';
+        nextClerkVerification.orderedBy = currentUser?.name || 'Pharmacy Stock Clerk';
+        nextClerkVerification.orderedAt = new Date().toISOString();
+        actionDetails = `Received order and initiated vendor purchase request for booking ${id}.`;
+        successMsg = `Received order for ${id}! Initiated purchase with vendor.`;
+        actionName = 'Clerk Order Initiated';
+      } else if (currentClerkStatus === 'Accepted') {
+        nextClerkVerification.status = 'Ready-to-use';
+        nextClerkVerification.verifiedBy = currentUser?.name || 'Pharmacy Stock Clerk';
+        nextClerkVerification.verifiedAt = new Date().toISOString();
+        actionDetails = `Confirmed supply arrived and marked reservation ${id} as ready-to-use.`;
+        successMsg = `Confirmed arrival for ${id}! Ready to use.`;
+        actionName = 'Stock Delivered';
+      } else {
+        return true;
+      }
+
       await updateDoc(docRef, {
-        clerkVerification: {
-          status: 'Ready-to-use',
-          verifiedBy: currentUser?.name || 'Pharmacy Stock Clerk',
-          verifiedAt: new Date().toISOString()
-        }
+        clerkVerification: nextClerkVerification
       });
 
       const logId = 'log-' + Date.now();
@@ -653,12 +688,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         userId: currentUser?.id || 'clerk',
         userName: currentUser?.name || 'Clerk',
         userRole: currentUser?.role || 'Pharmacy Stock Clerk',
-        action: 'Stock Delivered',
-        details: `Marked reservation supply ${id} as physically delivered.`
+        action: actionName,
+        details: actionDetails
       };
       await setDoc(doc(db, 'logs', logId), newLog);
 
-      spawnAlert(`Clerk Accepted order ${id}! Supply marked as physically ready-to-use.`, 'success');
+      spawnAlert(successMsg, 'success');
       return true;
     } catch (e: any) {
       handleFirestoreError(e, OperationType.UPDATE, `bookings/${id}`);
