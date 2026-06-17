@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { i18n } from '../lib/i18n';
 import { Booking, formatDateToDMY } from '../types';
-import { ChevronLeft, ChevronRight, HelpCircle, Check, Loader, Calendar as CalIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, HelpCircle, Check, Clock, Loader, Calendar as CalIcon } from 'lucide-react';
 
 export default function QueueCalendar() {
   const { bookings, language } = useApp();
@@ -305,6 +305,15 @@ export default function QueueCalendar() {
                       </span>
                       <p className="text-[9px] text-neutral-400 mt-1">
                         Received: {selectedBooking.clerkVerification.verifiedBy}
+                      </p>
+                    </div>
+                  ) : selectedBooking.clerkVerification?.status === 'Accepted' ? (
+                    <div>
+                      <span className="text-indigo-600 font-bold text-xs flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 shrink-0 animate-pulse text-indigo-500" /> ordered with Vendor
+                      </span>
+                      <p className="text-[9px] text-neutral-400 mt-1">
+                        Ordered By: {selectedBooking.clerkVerification.orderedBy || 'Staff'}
                       </p>
                     </div>
                   ) : (
