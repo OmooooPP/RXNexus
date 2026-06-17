@@ -60,6 +60,8 @@ export interface Verification {
   status: 'Pending' | 'Accepted' | 'Verified' | 'Ready-to-use';
   verifiedBy: string;
   verifiedAt: string;
+  orderedBy?: string;
+  orderedAt?: string;
 }
 
 export interface Booking {
