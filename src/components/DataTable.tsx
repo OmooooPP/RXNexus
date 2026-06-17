@@ -25,8 +25,8 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
 
   const t = i18n[language];
 
-  // Selected classification tab: General vs Oncology
-  const [activeTab, setActiveTab] = useState<'General' | 'Oncology'>('General');
+  // Selected classification tab: All vs General vs Oncology
+  const [activeTab, setActiveTab] = useState<'All' | 'General' | 'Oncology'>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
@@ -46,12 +46,33 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
 
   // Filter queues
   const filteredBookings = bookings.filter((b) => {
-    const belongsToTab = b.mode === activeTab;
+    const belongsToTab = activeTab === 'All' || b.mode === activeTab;
     const matchesSearch =
       b.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.hn.replace(/-/g, '').includes(searchQuery.replace(/-/g, '')) ||
       b.hn.includes(searchQuery);
-    return belongsToTab && matchesSearch;
+
+    if (!belongsToTab || !matchesSearch) return false;
+
+    // Check if within 5 days of use limit
+    if (!b.dateOfUse) return true;
+    try {
+      const useDate = new Date(b.dateOfUse);
+      useDate.setHours(0, 0, 0, 0);
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (useDate >= today) {
+        return true;
+      } else {
+        const diffTime = today.getTime() - useDate.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays <= 5;
+      }
+    } catch {
+      return true;
+    }
   });
 
   // Action validation based on User Roles
@@ -64,7 +85,18 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
       {/* Search and Tabs line */}
       <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         {/* Toggle tabs */}
-        <div className="flex bg-slate-50 p-1 rounded-lg border border-slate-200 max-w-sm">
+        <div className="flex bg-slate-50 p-1 rounded-lg border border-slate-200 max-w-md w-full md:w-auto">
+          <button
+            id="tab-all-btn"
+            onClick={() => setActiveTab('All')}
+            className={`flex-1 px-4 py-2 font-semibold text-xs rounded transition-all ${
+              activeTab === 'All'
+                ? 'bg-slate-800 text-white shadow-xs'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            {t.tabAll}
+          </button>
           <button
             id="tab-general-btn"
             onClick={() => setActiveTab('General')}
