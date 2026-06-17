@@ -35,6 +35,7 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
   const [hn, setHn] = useState(existingRecord ? existingRecord.hn : '');
   const [patientName, setPatientName] = useState(existingRecord ? existingRecord.patientName : '');
   const [dateOfUse, setDateOfUse] = useState(existingRecord ? existingRecord.dateOfUse : new Date().toISOString().split('T')[0]);
+  const [bookingDate, setBookingDate] = useState(existingRecord ? existingRecord.bookingDate : new Date().toISOString().split('T')[0]);
   const [department, setDepartment] = useState(existingRecord ? existingRecord.department : '');
   const [pharmacyLocation, setPharmacyLocation] = useState(existingRecord ? existingRecord.pharmacyLocation || '' : '');
   const [patientType, setPatientType] = useState<'employee' | 'opd' | 'ipd' | 'it'>(
@@ -334,6 +335,7 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
     const payload = {
       hn,
       patientName: patientName.trim(),
+      bookingDate,
       dateOfUse,
       department: department.trim(),
       pharmacyLocation: pharmacyLocation.trim(),
@@ -368,6 +370,7 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
         // Clear forms
         setHn('');
         setPatientName('');
+        setBookingDate(new Date().toISOString().split('T')[0]);
         setPharmacyLocation('');
         setSelectedMeds([]);
         setImageEncoded('');
@@ -465,6 +468,20 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
             value={patientName}
             onChange={(e) => setPatientName(e.target.value)}
             placeholder={t.patientNamePlaceholder}
+            className="w-full bg-slate-50 border border-slate-200 px-2.5 py-2 md:px-3 md:py-2.5 rounded-lg text-xs md:text-sm focus:outline-hidden focus:border-blue-500 focus:bg-white"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs md:text-sm font-bold text-slate-700 mb-1.5">
+            {language === 'TH' ? 'วันที่จองยา *' : 'Booking Date *'}
+          </label>
+          <input
+            id="booking-date-input"
+            type="date"
+            required
+            value={bookingDate}
+            onChange={(e) => setBookingDate(e.target.value)}
             className="w-full bg-slate-50 border border-slate-200 px-2.5 py-2 md:px-3 md:py-2.5 rounded-lg text-xs md:text-sm focus:outline-hidden focus:border-blue-500 focus:bg-white"
           />
         </div>
