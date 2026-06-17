@@ -217,7 +217,14 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
                       <td className="p-4">
                         <div className="flex flex-col gap-2 max-w-[180px]">
                           {/* Pharmacist validation status */}
-                          <div className="flex items-center justify-between text-[10px] p-1.5 rounded-lg border bg-white border-slate-250">
+                          <div 
+                            className="group relative flex items-center justify-between text-[10px] p-1.5 rounded-lg border bg-white border-slate-250 cursor-help"
+                            title={
+                              phVerifiedValueDone
+                                ? `Verified By: ${b.pharmacistVerification.verifiedBy}\nTime: ${new Date(b.pharmacistVerification.verifiedAt).toLocaleString(language === 'TH' ? 'th-TH' : 'en-US')}`
+                                : 'Pending pharmacist verification'
+                            }
+                          >
                             <span className="text-slate-400 font-medium">{t.valPharmacist}:</span>
                             {phVerifiedValueDone ? (
                               <span className="text-green-600 font-bold flex items-center gap-1">
@@ -228,20 +235,72 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
                                 <Clock className="w-3 h-3 animate-pulse" /> {t.notVerified}
                               </span>
                             )}
+
+                            {/* Custom visual tooltip on hover */}
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-max max-w-xs bg-slate-900/95 text-white text-[10px] p-2 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none border border-slate-800 font-sans leading-relaxed">
+                              {phVerifiedValueDone ? (
+                                <div className="space-y-1">
+                                  <p className="font-bold border-b border-white/10 pb-1 text-green-400 text-left">✓ Pharmacist Approved</p>
+                                  <p className="text-left"><span className="text-slate-300">By:</span> {b.pharmacistVerification.verifiedBy}</p>
+                                  <p className="text-left"><span className="text-slate-300">Time:</span> {b.pharmacistVerification.verifiedAt ? new Date(b.pharmacistVerification.verifiedAt).toLocaleString(language === 'TH' ? 'th-TH' : 'en-US') : '-'}</p>
+                                </div>
+                              ) : (
+                                <p className="text-amber-400 font-medium text-left">Awaiting pharmacist validation</p>
+                              )}
+                              {/* Small triangle arrow */}
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-900/95" />
+                            </div>
                           </div>
 
                           {/* Clerk validation status */}
-                          <div className="flex items-center justify-between text-[10px] p-1.5 rounded-lg border bg-white border-slate-250">
+                          <div 
+                            className="group relative flex items-center justify-between text-[10px] p-1.5 rounded-lg border bg-white border-slate-250 cursor-help"
+                            title={
+                              clerkVerifiedValueDone
+                                ? `Ordered By: ${b.clerkVerification.orderedBy || '-'}\nOrdered At: ${b.clerkVerification.orderedAt ? new Date(b.clerkVerification.orderedAt).toLocaleString(language === 'TH' ? 'th-TH' : 'en-US') : '-'}\nArrived By: ${b.clerkVerification.verifiedBy || '-'}\nArrived At: ${b.clerkVerification.verifiedAt ? new Date(b.clerkVerification.verifiedAt).toLocaleString(language === 'TH' ? 'th-TH' : 'en-US') : '-'}`
+                                : b.clerkVerification?.status === 'Accepted'
+                                ? `Ordered By: ${b.clerkVerification.orderedBy || '-'}\nOrdered At: ${b.clerkVerification.orderedAt ? new Date(b.clerkVerification.orderedAt).toLocaleString(language === 'TH' ? 'th-TH' : 'en-US') : '-'}\nAwaiting Delivery Arrival`
+                                : 'Pending warehouse processing'
+                            }
+                          >
                             <span className="text-slate-400 font-medium">Clerk / Stock:</span>
                             {clerkVerifiedValueDone ? (
                               <span className="text-green-600 font-bold flex items-center gap-1">
-                                <CheckCircle className="w-3 h-3" /> {t.accepted}
+                                <CheckCircle className="w-3 h-3" /> {language === 'TH' ? 'ของ Arrived' : 'Arrived'}
+                              </span>
+                            ) : b.clerkVerification?.status === 'Accepted' ? (
+                              <span className="text-indigo-600 font-bold flex items-center gap-1 animate-pulse">
+                                <Clock className="w-3 h-3 text-indigo-500" /> {language === 'TH' ? 'สั่งซื้อแล้ว' : 'Ordered'}
                               </span>
                             ) : (
                               <span className="text-amber-500 font-bold flex items-center gap-1">
                                 <Clock className="w-3 h-3 animate-pulse" /> {t.notVerified}
                               </span>
                             )}
+
+                            {/* Custom visual tooltip on hover */}
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-max max-w-xs bg-slate-900/95 text-white text-[10px] p-2.5 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none border border-slate-800 font-sans leading-relaxed">
+                              {clerkVerifiedValueDone ? (
+                                <div className="space-y-1 text-left">
+                                  <p className="font-bold border-b border-white/10 pb-1 text-green-400">✓ Complete (Stock Arrived)</p>
+                                  <p><span className="text-slate-300">1. Ordered By:</span> {b.clerkVerification.orderedBy || 'Staff'}</p>
+                                  <p><span className="text-slate-300">At:</span> {b.clerkVerification.orderedAt ? new Date(b.clerkVerification.orderedAt).toLocaleString(language === 'TH' ? 'th-TH' : 'en-US') : '-'}</p>
+                                  <p className="border-t border-white/5 my-1 pt-1"><span className="text-slate-300">2. Arrived By:</span> {b.clerkVerification.verifiedBy}</p>
+                                  <p><span className="text-slate-300">At:</span> {b.clerkVerification.verifiedAt ? new Date(b.clerkVerification.verifiedAt).toLocaleString(language === 'TH' ? 'th-TH' : 'en-US') : '-'}</p>
+                                </div>
+                              ) : b.clerkVerification?.status === 'Accepted' ? (
+                                <div className="space-y-1 text-left">
+                                  <p className="font-bold border-b border-white/10 pb-1 text-indigo-400">⚡ Step 1: Order Sourced</p>
+                                  <p><span className="text-slate-300">Ordered By:</span> {b.clerkVerification.orderedBy || 'Staff'}</p>
+                                  <p><span className="text-slate-300">At:</span> {b.clerkVerification.orderedAt ? new Date(b.clerkVerification.orderedAt).toLocaleString(language === 'TH' ? 'th-TH' : 'en-US') : '-'}</p>
+                                  <p className="text-amber-400 font-medium pt-1">Awaiting physical delivery confirmation...</p>
+                                </div>
+                              ) : (
+                                <p className="text-amber-400 font-medium text-left">Awaiting clerk/stock processing</p>
+                              )}
+                              {/* Small triangle arrow */}
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-900/95" />
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -310,9 +369,16 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
                               type="button"
                               onClick={() => verifyClerk(b.id)}
                               disabled={loading}
-                              className="p-1 px-2.5 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold rounded-lg transition-colors cursor-pointer shadow-xs"
+                              className={`p-1 px-2.5 text-[10px] font-bold rounded-lg transition-colors cursor-pointer shadow-xs text-white ${
+                                b.clerkVerification?.status === 'Accepted'
+                                  ? 'bg-emerald-600 hover:bg-emerald-700'
+                                  : 'bg-indigo-600 hover:bg-indigo-700'
+                              }`}
                             >
-                              Arrived
+                              {b.clerkVerification?.status === 'Accepted'
+                                ? (language === 'TH' ? 'ยืนยันของ Arrived' : 'Confirm Arrived')
+                                : (language === 'TH' ? 'รับ Order / สั่งซื้อ' : 'Receive & Order')
+                              }
                             </button>
                           )}
 
