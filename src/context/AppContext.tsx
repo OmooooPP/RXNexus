@@ -149,6 +149,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   // Connect to Firestore collections in real-time using onSnapshot listeners
   useEffect(() => {
     if (currentUser) {
+      // Clean up legacy d-1 to d-10 drugs as requested by user
+      const legacyIds = ['d-1', 'd-2', 'd-3', 'd-4', 'd-5', 'd-6', 'd-7', 'd-8', 'd-9', 'd-10'];
+      legacyIds.forEach(async (id) => {
+        try {
+          await deleteDoc(doc(db, 'drugs', id));
+        } catch (e) {
+          // Ignore silently
+        }
+      });
+
       // 1. Real-time Bookings sync
       const qBookings = query(collection(db, 'bookings'));
       const unsubBookings = onSnapshot(qBookings, (snap) => {
@@ -458,8 +468,28 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     try {
       const today = new Date().toISOString().split('T')[0];
       const todayStr = today.replace(/-/g, '');
-      const todaysBookingCount = bookings.filter(x => x.bookingDate === today).length + 1;
-      const bookingId = `RXN-${todayStr}-${String(todaysBookingCount).padStart(3, '0')}`;
+      
+      // Find the maximum existing sequence suffix for today's bookings
+      const todayBookings = bookings.filter(x => x.bookingDate === today);
+      let maxSeq = 0;
+      todayBookings.forEach(x => {
+        const parts = x.id.split('-');
+        if (parts.length >= 3) {
+          const seq = parseInt(parts[2], 10);
+          if (!isNaN(seq) && seq > maxSeq) {
+            maxSeq = seq;
+          }
+        }
+      });
+
+      let nextSeq = maxSeq + 1;
+      let bookingId = `RXN-${todayStr}-${String(nextSeq).padStart(3, '0')}`;
+      
+      // Double check against any loaded bookings to guarantee absolute uniqueness
+      while (bookings.some(x => x.id === bookingId)) {
+        nextSeq++;
+        bookingId = `RXN-${todayStr}-${String(nextSeq).padStart(3, '0')}`;
+      }
 
       const newBooking: Booking = {
         id: bookingId,
