@@ -68,6 +68,7 @@ export const i18n = {
     // Table list
     tableTitle: "Medication Queue Data Ledger",
     searchPlaceholder: "Search patient queue by Name or HN...",
+    tabAll: "All Bookings Queue",
     tabGeneral: "General Drugs Queue",
     tabOncology: "Oncology Drugs Queue",
     colBookingId: "Booking ID",
@@ -218,6 +219,7 @@ export const i18n = {
     // Table list
     tableTitle: "รายการจองยา",
     searchPlaceholder: "ระบุค้นหาผู้ป่วยด้วย ชื่อ หรือ หมายเลข HN...",
+    tabAll: "รายการจองทั้งหมด",
     tabGeneral: "รายการจองยาทั่วไป",
     tabOncology: "รายการจองยา Oncology",
     colBookingId: "เลขที่ใบจอง",
