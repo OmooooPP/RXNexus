@@ -25,10 +25,19 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
 
   const t = i18n[language];
 
-  // Selected classification tab: All vs General vs Oncology
-  const [activeTab, setActiveTab] = useState<'All' | 'General' | 'Oncology'>('All');
+  // Selected classification tab: All vs General vs Oncology vs Hold
+  const [activeTab, setActiveTab] = useState<'All' | 'General' | 'Oncology' | 'Hold'>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+  // Clinical Hold and Date Rescheduling (Rollover) triggers
+  const [holdingBooking, setHoldingBooking] = useState<Booking | null>(null);
+  const [unholdingBooking, setUnholdingBooking] = useState<Booking | null>(null);
+  const [rollingBooking, setRollingBooking] = useState<Booking | null>(null);
+
+  const [holdReason, setHoldReason] = useState('');
+  const [nurseName, setNurseName] = useState('');
+  const [rolloverDate, setRolloverDate] = useState('');
 
   useEffect(() => {
     if (initialSearchQuery) {
@@ -79,17 +88,27 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
   const canVerifyAsPharmacist = currentUser?.role === 'Pharmacist' || currentUser?.role === 'Admin';
   const canVerifyAsClerk = currentUser?.role === 'Pharmacy Stock Clerk' || currentUser?.role === 'Admin';
   const canDeleteOrEdit = currentUser?.role === 'Admin' || currentUser?.role === 'Pharmacist' || currentUser?.role === 'Nurse' || currentUser?.role === 'Doctor';
+  const canHoldAndRollover = currentUser?.role === 'Nurse' || currentUser?.role === 'Doctor' || currentUser?.role === 'Admin';
+
+  const heldBookings = bookings.filter((b) => {
+    const isHeld = b.holdStatus?.isHeld === true;
+    const matchesSearch =
+      b.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      b.hn.replace(/-/g, '').includes(searchQuery.replace(/-/g, '')) ||
+      b.hn.includes(searchQuery);
+    return isHeld && matchesSearch;
+  });
 
   return (
     <div className="space-y-6">
       {/* Search and Tabs line */}
       <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         {/* Toggle tabs */}
-        <div className="flex bg-slate-50 p-1 rounded-lg border border-slate-200 max-w-md w-full md:w-auto">
+        <div className="flex bg-slate-50 p-1 rounded-lg border border-slate-200 max-w-xl w-full md:w-auto overflow-x-auto gap-0.5">
           <button
             id="tab-all-btn"
             onClick={() => setActiveTab('All')}
-            className={`flex-1 px-4 py-2 font-semibold text-xs rounded transition-all ${
+            className={`flex-1 px-4 py-2 font-semibold text-xs rounded transition-all whitespace-nowrap ${
               activeTab === 'All'
                 ? 'bg-slate-800 text-white shadow-xs'
                 : 'text-slate-500 hover:text-slate-800'
@@ -100,7 +119,7 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
           <button
             id="tab-general-btn"
             onClick={() => setActiveTab('General')}
-            className={`flex-1 px-4 py-2 font-semibold text-xs rounded transition-all ${
+            className={`flex-1 px-4 py-2 font-semibold text-xs rounded transition-all whitespace-nowrap ${
               activeTab === 'General'
                 ? 'bg-blue-600 text-white shadow-xs'
                 : 'text-slate-500 hover:text-slate-800'
@@ -111,13 +130,24 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
           <button
             id="tab-oncology-btn"
             onClick={() => setActiveTab('Oncology')}
-            className={`flex-1 px-4 py-2 font-semibold text-xs rounded transition-all ${
+            className={`flex-1 px-4 py-2 font-semibold text-xs rounded transition-all whitespace-nowrap ${
               activeTab === 'Oncology'
                 ? 'bg-red-600 text-white shadow-xs'
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
             {t.tabOncology}
+          </button>
+          <button
+            id="tab-hold-btn"
+            onClick={() => setActiveTab('Hold')}
+            className={`flex-1 px-4 py-2 font-semibold text-xs rounded transition-all whitespace-nowrap ${
+              activeTab === 'Hold'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            {language === 'TH' ? 'รายการยา HOLD' : 'Held Medications'}
           </button>
         </div>
 
@@ -141,8 +171,79 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
         </div>
       </div>
 
-      {/* Main Ledger Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      {/* Clinically Held Medications Section - Visible under HOLD active tab */}
+      {activeTab === 'Hold' ? (
+        <div className="bg-white rounded-xl border border-red-200 shadow-xs overflow-hidden animate-fade-in-rapid">
+          <div className="p-4 bg-rose-50 border-b border-rose-150 flex justify-between items-center bg-amber-50 border-amber-100">
+            <h3 className="font-bold text-xs text-amber-800 uppercase tracking-tight flex items-center gap-2 font-sans">
+              <span className="text-sm">⏸️</span>
+              <span>{language === 'TH' ? 'รายการยา HOLD (พักใช้ชั่วคราว)' : 'Held Medications List'} ({heldBookings.length})</span>
+            </h3>
+          <span className="text-[9px] bg-amber-100 text-amber-800 font-extrabold px-1.5 py-0.5 rounded leading-none uppercase font-sans">
+            {language === 'TH' ? 'ระบบเฝ้าระวังยา' : 'Clinical Watchlist'}
+          </span>
+        </div>
+
+        {heldBookings.length === 0 ? (
+          <div className="p-5 text-center text-slate-400 font-medium text-[11px] bg-slate-50/10">
+            {language === 'TH' ? 'ไม่มีรายการยาที่ถูกระงับ (Hold) ในขณะนี้' : 'No clinical medication bookings on clinical hold.'}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50 text-slate-550 font-bold uppercase tracking-wider text-[9px] border-b border-slate-200">
+                  <th className="p-3">ID</th>
+                  <th className="p-3">{language === 'TH' ? 'คนไข้ / รหัส HN' : 'Patient / HN'}</th>
+                  <th className="p-3">{language === 'TH' ? 'เหตุผลการ Hold' : 'Hold Reason'}</th>
+                  <th className="p-3">{language === 'TH' ? 'พยาบาลผู้รับแจ้ง' : 'Notified Nurse'}</th>
+                  <th className="p-3">{language === 'TH' ? 'วันที่ระงับ' : 'Hold Date'}</th>
+                  {canHoldAndRollover && <th className="p-3 text-center">{language === 'TH' ? 'การจัดการ' : 'Action'}</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {heldBookings.map((b) => (
+                  <tr key={b.id} className="hover:bg-slate-50/30">
+                    <td className="p-3 font-semibold text-slate-600">{b.id}</td>
+                    <td className="p-3 font-sans">
+                      <span className="font-bold text-slate-800 block">{b.patientName}</span>
+                      <span className="text-[9.5px] font-mono text-slate-400">HN: {b.hn}</span>
+                    </td>
+                    <td className="p-3 text-slate-700 bg-amber-50/20 max-w-xs truncate font-medium" title={b.holdStatus?.reason}>
+                      {b.holdStatus?.reason || '-'}
+                    </td>
+                    <td className="p-3 font-bold text-slate-700">
+                      👤 {b.holdStatus?.notifyingNurse || (b.holdStatus as any)?.notifiedNurse || '-'}
+                    </td>
+                    <td className="p-3 text-slate-500 font-mono text-[10px]">
+                      {(b.holdStatus?.heldAt || (b.holdStatus as any)?.timestamp) ? (b.holdStatus.heldAt || (b.holdStatus as any).timestamp).substring(0, 16).replace('T', ' ') : '-'}
+                    </td>
+                    {canHoldAndRollover && (
+                      <td className="p-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUnholdingBooking(b);
+                            setHoldReason('');
+                            setNurseName('');
+                          }}
+                          className="px-2.5 py-1 text-[10px] inline-flex items-center justify-center font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded shadow-xs transition-colors cursor-pointer"
+                        >
+                          Continue (Unhold)
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      ) : (
+        /* Main Ledger Table - Visible when Hold active tab is NOT selected */
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
           <h3 className="font-bold text-sm text-slate-700 font-sans uppercase tracking-tight">
             {t.tableTitle} ({filteredBookings.length})
@@ -177,7 +278,7 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
                   const phVerifiedValueDone = b.pharmacistVerification.status === 'Verified';
 
                   return (
-                    <tr key={b.id} className="hover:bg-slate-50/40 transition-colors">
+                    <tr key={b.id} className={`hover:bg-slate-50/40 transition-all ${b.holdStatus?.isHeld ? 'bg-slate-100/70 opacity-75 border-l-4 border-l-amber-500 text-slate-400' : ''}`}>
                       {/* ID and time */}
                       <td className="p-4 whitespace-nowrap">
                         <span className="text-[11px] font-bold text-slate-600 block">
@@ -191,7 +292,7 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
                       {/* Patient and Hospital ID */}
                       <td className="p-4">
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-slate-800 text-sm">
+                          <span className={`font-bold text-slate-800 text-sm ${b.holdStatus?.isHeld ? 'text-slate-500 line-through' : ''}`}>
                             {b.patientName}
                           </span>
                           {clerkVerifiedValueDone && (
@@ -207,6 +308,20 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
                           <span>•</span>
                           <span>{b.department}</span>
                         </div>
+                        {b.holdStatus?.isHeld && (
+                          <div className="mt-1.5 flex items-center gap-1.5 flex-wrap font-sans">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[9.5px] font-black bg-amber-100 text-amber-800 border border-amber-250 uppercase leading-none shadow-3xs">
+                              Hold: {b.holdStatus.reason} ({b.holdStatus.notifyingNurse || (b.holdStatus as any).notifiedNurse})
+                            </span>
+                          </div>
+                        )}
+                        {b.rolloverStatus && (
+                          <div className="mt-1.5 flex items-center gap-1.5 flex-wrap font-sans">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[9.5px] font-black bg-purple-100 text-purple-800 border border-purple-250 uppercase leading-none shadow-3xs">
+                              {language === 'TH' ? 'เปลี่ยนวันบริหารให้ยา' : 'Rescheduled Date'}: ดั้งเดิม {formatDateToDMY(b.rolloverStatus.originalDateOfUse || (b.rolloverStatus as any).originalDate)} ({b.rolloverStatus.reason} | {b.rolloverStatus.notifyingNurse || (b.rolloverStatus as any).notifiedNurse})
+                            </span>
+                          </div>
+                        )}
                       </td>
 
                       {/* Date of use */}
@@ -443,6 +558,54 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
                               )}
                             </div>
                           )}
+
+                          {/* Doctor & Nurse Clinical Hold + Rollover Option Choices */}
+                          {canHoldAndRollover && (
+                            <div className="flex gap-1.5 items-center border-l border-slate-200 pl-2 font-sans">
+                              {!b.holdStatus?.isHeld ? (
+                                <div className="flex flex-col gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setHoldingBooking(b);
+                                      setHoldReason('');
+                                      setNurseName('');
+                                    }}
+                                    className="p-1 px-1.5 border border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 rounded text-[9.5px] font-black uppercase leading-none cursor-pointer"
+                                    title="Hold medication queue"
+                                  >
+                                    Hold
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setRollingBooking(b);
+                                      setHoldReason('');
+                                      setRolloverDate(b.dateOfUse);
+                                      setNurseName('');
+                                    }}
+                                    className="p-1 px-1.5 border border-purple-250 text-purple-700 bg-purple-50 hover:bg-purple-100 rounded text-[9.5px] font-black uppercase leading-none cursor-pointer"
+                                    title="Change administration date"
+                                  >
+                                    {language === 'TH' ? 'เปลี่ยนวัน' : 'Rollover'}
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setUnholdingBooking(b);
+                                    setHoldReason('');
+                                    setNurseName('');
+                                  }}
+                                  className="p-1 px-1.5 border border-emerald-250 text-emerald-700 bg-emerald-55/70 hover:bg-emerald-100 rounded text-[9.5px] font-black uppercase leading-none cursor-pointer"
+                                  title="Continue dispensing flow"
+                                >
+                                  Continue
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -453,6 +616,7 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
           </div>
         )}
       </div>
+      )}
 
       {/* Embedded Prescription Preview Popup Modal */}
       {selectedImage && (
@@ -478,6 +642,254 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
             </div>
             <div className="p-3 bg-slate-50 border-t border-slate-200 text-center text-[10px] text-slate-500">
               Sourced digitally under RxNexus Patient Privacy framework
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 1. Hold Medication Modal Popup */}
+      {holdingBooking && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4">
+            <h3 className="font-bold text-sm text-amber-800 uppercase flex items-center gap-2">
+              <span className="text-base">⚠️</span> {language === 'TH' ? 'Hold รายการยา' : 'Hold Medication'}
+            </h3>
+            <p className="text-[11.5px] text-slate-550 leading-normal">
+              {language === 'TH' 
+                ? `ระงับการสั่งและจ่ายยาชั่วคราวสำหรับคิวผู้ป่วย ${holdingBooking.patientName} (HN: ${holdingBooking.hn}) กรุณาระบุรายละเอียดและชื่อพยาบาล`
+                : `Temporarily suspend medication dispensation for patient ${holdingBooking.patientName} (HN: ${holdingBooking.hn}).`
+              }
+            </p>
+            
+            <div className="space-y-3 font-sans">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-705 uppercase tracking-wide mb-1">
+                  {language === 'TH' ? 'ระบุเหตุผลการ Hold *' : 'Hold Reason *'}
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={holdReason}
+                  onChange={(e) => setHoldReason(e.target.value)}
+                  placeholder={language === 'TH' ? 'ระบุเหตุผล (เช่น อยู่ระหว่างปรึกษาแพทย์ปอด, ค่าเลือดต่ำ)' : 'dosage review, nurse advised, etc.'}
+                  className="w-full bg-slate-50 border border-slate-200 p-2 rounded text-xs focus:ring-2 focus:ring-amber-500/20 focus:outline-hidden"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-[10px] font-bold text-slate-705 uppercase tracking-wide mb-1">
+                  {language === 'TH' ? 'ชื่อพยาบาลที่แจ้ง (ผู้รับแจ้งความประสงค์) *' : 'Notifying Nurse Name *'}
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={nurseName}
+                  onChange={(e) => setNurseName(e.target.value)}
+                  placeholder={language === 'TH' ? 'พยาบาลผู้รับแจ้งความประสงค์' : 'Reporting nurse name'}
+                  className="w-full bg-slate-50 border border-slate-200 p-2 rounded text-xs focus:ring-2 focus:ring-amber-500/20 focus:outline-hidden"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setHoldingBooking(null)}
+                className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-semibold cursor-pointer transition-colors"
+              >
+                {language === 'TH' ? 'ยกเลิก' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                disabled={!holdReason.trim() || !nurseName.trim()}
+                onClick={() => {
+                  updateBooking(holdingBooking.id, {
+                    holdStatus: {
+                      isHeld: true,
+                      reason: holdReason,
+                      notifiedNurse: nurseName,
+                      timestamp: new Date().toISOString()
+                    }
+                  });
+                  setHoldingBooking(null);
+                }}
+                className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded text-xs font-semibold cursor-pointer transition-colors"
+              >
+                {language === 'TH' ? 'ระงับสั่งใช้ยา (Hold)' : 'Confirm Hold'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Unhold / Resume Modal Popup */}
+      {unholdingBooking && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4">
+            <h3 className="font-bold text-sm text-emerald-800 uppercase flex items-center gap-2">
+              <span className="text-base">🔄</span> {language === 'TH' ? 'ดำเนินการให้ยาต่อ (Unhold)' : 'Continue (Unhold) Medication'}
+            </h3>
+            <p className="text-[11.5px] text-slate-550 leading-normal">
+              {language === 'TH'
+                ? `เริ่มดำเนินการจ่ายยาต่อตามปกติสำหรับผู้ป่วย ${unholdingBooking.patientName} (HN: ${unholdingBooking.hn})`
+                : `Restore and continue clinical dispensation for ${unholdingBooking.patientName} (HN: ${unholdingBooking.hn}).`
+              }
+            </p>
+
+            <div className="space-y-3 font-sans">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-705 uppercase tracking-wide mb-1">
+                  {language === 'TH' ? 'ระบุเหตุผลในการคืนสถานะ (Unhold) *' : 'Unhold Reason *'}
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={holdReason}
+                  onChange={(e) => setHoldReason(e.target.value)}
+                  placeholder={language === 'TH' ? 'เช่น ตรวจสอบแผนการรักษาเสร็จสิ้น, ผลเลือดปกติแล้ว' : 'postponement resolved, doctor approved, etc.'}
+                  className="w-full bg-slate-50 border border-slate-200 p-2 rounded text-xs focus:ring-2 focus:ring-emerald-500/20 focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-705 uppercase tracking-wide mb-1">
+                  {language === 'TH' ? 'ชื่อพยาบาลผู้รับแจ้งคืนสถานะ *' : 'Reporting Nurse Name *'}
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={nurseName}
+                  onChange={(e) => setNurseName(e.target.value)}
+                  placeholder={language === 'TH' ? 'พยาบาลผู้แจ้ง / ผู้รับประสงค์' : 'Nurse name'}
+                  className="w-full bg-slate-50 border border-slate-200 p-2 rounded text-xs focus:ring-2 focus:ring-emerald-500/20 focus:outline-hidden"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setUnholdingBooking(null)}
+                className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-semibold cursor-pointer transition-colors"
+              >
+                {language === 'TH' ? 'ยกเลิก' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                disabled={!holdReason.trim() || !nurseName.trim()}
+                onClick={() => {
+                  updateBooking(unholdingBooking.id, {
+                    holdStatus: {
+                      isHeld: false,
+                      reason: unholdingBooking.holdStatus?.reason || '',
+                      notifyingNurse: unholdingBooking.holdStatus?.notifyingNurse || '',
+                      heldAt: unholdingBooking.holdStatus?.heldAt || new Date().toISOString(),
+                      unholdReason: holdReason,
+                      unholdNurse: nurseName,
+                      unheldAt: new Date().toISOString()
+                    }
+                  });
+                  setUnholdingBooking(null);
+                }}
+                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded text-xs font-semibold cursor-pointer transition-colors"
+              >
+                {language === 'TH' ? 'ยืนยันจ่ายต่อ' : 'Confirm Unhold'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Reschedule Date (Rollover) Modal Popup */}
+      {rollingBooking && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4">
+            <h3 className="font-bold text-sm text-purple-800 uppercase flex items-center gap-2">
+              <span className="text-base">📅</span> {language === 'TH' ? 'เปลี่ยนวันบริหารให้ยา / Rollover' : 'Rollover Medication Date'}
+            </h3>
+            <p className="text-[11.5px] text-slate-550 leading-normal">
+              {language === 'TH'
+                ? `เปลี่ยนวันบริหารการให้ยาจริงสำหรับคนไข้ ${rollingBooking.patientName} (HN: ${rollingBooking.hn})`
+                : `Reschedule administration target date for ${rollingBooking.patientName} (HN: ${rollingBooking.hn}).`
+              }
+            </p>
+
+            <div className="space-y-3 font-sans">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-705 uppercase tracking-wide mb-1">
+                  {language === 'TH' ? 'ระบุวันที่ต้องการจัดใช้ใหม่ *' : 'New Date of Use *'}
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={rolloverDate}
+                  onChange={(e) => setRolloverDate(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 p-2 rounded text-xs focus:ring-2 focus:ring-purple-500/20 focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-705 uppercase tracking-wide mb-1">
+                  {language === 'TH' ? 'ระบุสาเหตุการเปลี่ยนวันที่บริหารยา *' : 'Rollover Reason *'}
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={holdReason}
+                  onChange={(e) => setHoldReason(e.target.value)}
+                  placeholder={language === 'TH' ? 'เช่น ผลข้างเคียงไข้สูงเลื่อนนัด, นัดจองทำแล็บเลื่อน, เกล็ดเลือดไม่ผ่านเกณฑ์' : 'Enter rollover triggers (e.g. platelets count post-dose low)'}
+                  className="w-full bg-slate-50 border border-slate-200 p-2 rounded text-xs focus:ring-2 focus:ring-purple-500/20 focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-705 uppercase tracking-wide mb-1">
+                  {language === 'TH' ? 'ชื่อพยาบาลผู้สังเกตการณ์แจ้งประสานงาน *' : 'Notifying Nurse Name *'}
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={nurseName}
+                  onChange={(e) => setNurseName(e.target.value)}
+                  placeholder={language === 'TH' ? 'ชื่อพยาบาลผู้ประสานงาน' : 'Nurse coordinator name'}
+                  className="w-full bg-slate-50 border border-slate-200 p-2 rounded text-xs focus:ring-2 focus:ring-purple-500/20 focus:outline-hidden"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setRollingBooking(null)}
+                className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-semibold cursor-pointer transition-colors"
+              >
+                {language === 'TH' ? 'ยกเลิก' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                disabled={!rolloverDate || !holdReason.trim() || !nurseName.trim()}
+                onClick={() => {
+                  updateBooking(rollingBooking.id, {
+                    dateOfUse: rolloverDate,
+                    pharmacistVerification: {
+                      status: 'Pending',
+                      verifiedBy: '',
+                      timestamp: ''
+                    },
+                    rolloverStatus: {
+                      originalDateOfUse: rollingBooking.dateOfUse,
+                      newDateOfUse: rolloverDate,
+                      reason: holdReason,
+                      notifyingNurse: nurseName,
+                      rolledOverAt: new Date().toISOString()
+                    }
+                  });
+                  setRollingBooking(null);
+                }}
+                className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded text-xs font-semibold cursor-pointer transition-colors"
+              >
+                {language === 'TH' ? 'ยืนยันเลื่อนนัดยา' : 'Confirm Rollover'}
+              </button>
             </div>
           </div>
         </div>

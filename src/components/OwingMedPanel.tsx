@@ -375,7 +375,7 @@ export default function OwingMedPanel() {
                           <div className="flex-1 min-w-0">
                             <div className="flex justify-between items-start gap-2">
                               <div className="space-y-0.5">
-                                <span className={`font-extrabold block leading-snug truncate ${isOwing ? 'text-rose-950' : 'text-slate-900'}`}>
+                                <span className={`font-extrabold block leading-snug break-words whitespace-normal text-[11px] sm:text-xs md:text-sm ${isOwing ? 'text-rose-950' : 'text-slate-900'}`}>
                                   {item.drugName}
                                 </span>
                                 <span className="font-mono text-[9.5px] text-slate-400 block">Stock ID: {item.stockCode}</span>
@@ -387,20 +387,16 @@ export default function OwingMedPanel() {
                               </span>
                             </div>
 
-                            <div className="border-t border-dashed border-slate-200/60 mt-2.5 pt-2 flex items-center justify-between text-[10px]">
-                              <span className={`font-bold uppercase ${isOwing ? 'text-rose-700 font-black animate-pulse' : 'text-slate-500'}`}>
-                                {isOwing ? (
-                                  language === 'TH' ? '⚠️ ค้างจ่ายส่งล่าช้า (Not Ready)' : '⚠️ Not Ready / Owing'
-                                ) : (
-                                  language === 'TH' ? '✓ สำรองพร้อมส่งจ่าย' : '✓ Prepared / Ready'
-                                )}
-                              </span>
-                              {isOwing && (
+                            {isOwing && (
+                              <div className="border-t border-dashed border-slate-200/60 mt-2.5 pt-2 flex items-center justify-between text-[10px]">
+                                <span className="font-bold uppercase text-rose-700 font-black animate-pulse">
+                                  {language === 'TH' ? '⚠️ ค้างจ่ายส่งล่าช้า (Not Ready)' : '⚠️ Not Ready / Owing'}
+                                </span>
                                 <span className="text-[9px] bg-rose-100 border border-rose-200 font-extrabold text-rose-750 px-1.5 py-0.5 rounded uppercase font-sans animate-bounce shrink-0">
                                   Flagged Alert
                                 </span>
-                              )}
-                            </div>
+                              </div>
+                            )}
                           </div>
                         </label>
                       );

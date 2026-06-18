@@ -64,6 +64,26 @@ export interface Verification {
   orderedAt?: string;
 }
 
+export interface BookingHoldStatus {
+  isHeld: boolean;
+  reason: string;
+  notifyingNurse: string;
+  heldAt: string;
+  unholdReason?: string;
+  unholdNurse?: string;
+  unheldAt?: string;
+}
+
+export interface BookingRolloverStatus {
+  originalDateOfUse: string;
+  newDateOfUse: string;
+  reason: string;
+  notifyingNurse: string;
+  rolledOverAt: string;
+  pharmacistAlertRead?: boolean;
+  clerkAlertRead?: boolean;
+}
+
 export interface Booking {
   id: string; // e.g., "RXN-20260520-001"
   bookingDate: string; // YYYY-MM-DD
@@ -85,6 +105,8 @@ export interface Booking {
   pdfPrinted?: boolean;
   stickerPrinted?: boolean;
   createdAt: string;
+  holdStatus?: BookingHoldStatus;
+  rolloverStatus?: BookingRolloverStatus;
 }
 
 export interface SystemLog {

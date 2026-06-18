@@ -654,13 +654,27 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
                                       drugName: m.drugName,
                                       stockCode: m.stockCode,
                                       quantity: m.quantity,
-                                      regimen: b.regimen
+                                      regimen: b.regimen,
+                                      holdStatus: b.holdStatus,
+                                      rolloverStatus: b.rolloverStatus
                                     }))
                                   ).map((row, rIdx) => (
                                     <tr key={rIdx} className="bg-white hover:bg-slate-50/10 font-medium">
                                       <td className="py-1 px-2 text-center text-slate-400 font-sarabun font-semibold text-[9.5px]">{rIdx + 1}</td>
                                       <td className="py-1 px-2 text-center font-bold text-slate-750 font-sarabun text-[10.5px] whitespace-nowrap min-w-[105px] tracking-wide">{row.hn}</td>
-                                      <td className="py-1 px-2.5 font-extrabold text-slate-950 text-[11.5px] break-words whitespace-normal break-all min-w-[120px] max-w-[160px]">{row.patientName}</td>
+                                      <td className="py-1 px-2.5 font-extrabold text-slate-950 text-[11.5px] break-words whitespace-normal break-all min-w-[120px] max-w-[160px]">
+                                        <span>{row.patientName}</span>
+                                        {row.holdStatus?.isHeld && (
+                                          <span className="ml-1.5 px-1.5 py-0.2 bg-red-100 text-red-700 border border-red-205 rounded text-[8.5px] font-black whitespace-nowrap inline-block">
+                                            Hold
+                                          </span>
+                                        )}
+                                        {row.rolloverStatus && (
+                                          <span className="ml-1.5 px-1.5 py-0.2 bg-purple-100 text-purple-700 border border-purple-205 rounded text-[8.5px] font-black whitespace-nowrap inline-block">
+                                            {language === 'TH' ? 'เปลี่ยนวัน' : 'Rollover'}
+                                          </span>
+                                        )}
+                                      </td>
                                       <td className="py-1 px-2 text-center text-slate-600 font-bold whitespace-nowrap font-sarabun text-[10px]">{formatDateToDMY(row.dateOfUse)}</td>
                                       <td className="py-1 px-2 font-black text-slate-900 break-words whitespace-normal break-all min-w-[140px] max-w-[200px]">
                                         {row.drugName}
@@ -1100,13 +1114,27 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
                         drugName: m.drugName,
                         stockCode: m.stockCode,
                         quantity: m.quantity,
-                        regimen: b.regimen
+                        regimen: b.regimen,
+                        holdStatus: b.holdStatus,
+                        rolloverStatus: b.rolloverStatus
                       }))
                     ).map((row, idx) => (
                       <tr key={idx} className="font-medium hover:bg-slate-50/50 bg-white">
                         <td className="p-3 text-center text-slate-400 font-sarabun font-semibold text-[11px]">{idx + 1}</td>
                         <td className="p-3">
-                          <span className="font-bold text-slate-900 block">{row.patientName}</span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-slate-900">{row.patientName}</span>
+                            {row.holdStatus?.isHeld && (
+                              <span className="px-1.5 py-0.2 bg-red-100 text-red-700 border border-red-200 rounded text-[9px] font-black whitespace-nowrap">
+                                Hold
+                              </span>
+                            )}
+                            {row.rolloverStatus && (
+                              <span className="px-1.5 py-0.2 bg-purple-100 text-purple-700 border border-purple-200 rounded text-[9px] font-black whitespace-nowrap">
+                                {language === 'TH' ? 'เปลี่ยนวัน' : 'Rollover'}
+                              </span>
+                            )}
+                          </div>
                           <span className="text-[10px] text-slate-450 block font-sarabun font-extrabold whitespace-nowrap">HN: {row.hn}</span>
                         </td>
                         <td className="p-3 text-center text-slate-600 font-bold whitespace-nowrap font-sarabun text-xs">{formatDateToDMY(row.dateOfUse)}</td>

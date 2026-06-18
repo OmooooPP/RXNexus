@@ -84,6 +84,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [selectedPharmacyLocation, setSelectedPharmacyLocation] = useState<string>('All');
   const prevVerificationStatusRef = useRef<Record<string, string>>({});
   const prevClerkStatusRef = useRef<Record<string, string>>({});
+  const prevRolloverTimeRef = useRef<Record<string, string>>({});
 
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
     const saved = localStorage.getItem('sound_enabled');
@@ -163,8 +164,39 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const qBookings = query(collection(db, 'bookings'));
       const unsubBookings = onSnapshot(qBookings, (snap) => {
         snap.docChanges().forEach((change) => {
+          const b = change.doc.data() as Booking;
+
+          // Track and trigger Date Rollover alerts dynamically
+          const currentRolloverTime = b.rolloverStatus?.rolledOverAt || '';
+          const prevRolloverTime = prevRolloverTimeRef.current[b.id] || '';
+          prevRolloverTimeRef.current[b.id] = currentRolloverTime;
+
+          if (currentRolloverTime && currentRolloverTime !== prevRolloverTime) {
+            const rolledSecs = new Date(currentRolloverTime).getTime();
+            const diffMs = Math.abs(Date.now() - rolledSecs);
+            if (diffMs < 60000) {
+              const isPharmacist = currentUser?.role === 'Pharmacist' || currentUser?.roles?.includes('Pharmacist');
+              const isClerk = currentUser?.role === 'Pharmacy Stock Clerk' || currentUser?.roles?.includes('Pharmacy Stock Clerk');
+              const isAdmin = currentUser?.role === 'Admin' || currentUser?.roles?.includes('Admin');
+              
+              const langPref = localStorage.getItem('rxnexus_lang') || 'EN';
+              const isThai = langPref === 'TH';
+
+              if (isPharmacist || isAdmin) {
+                const alertMsg = isThai
+                  ? `⚠️ เลื่อนวันให้ยาแล้ว: HN: ${b.hn} (${b.patientName}) ย้ายไป ${formatDateToDMY(b.dateOfUse)} (เหตุผล: ${b.rolloverStatus?.reason || 'ไม่ได้ระบุ'}). พยาบาลผู้แจ้ง: ${b.rolloverStatus?.notifyingNurse || 'ไม่ได้ระบุ'}. ตรวจสอบแล้วคลิกเพื่อจัดเตรียมเวชภัณฑ์ตามรอบใหม่`
+                  : `⚠️ Date Rollover: HN: ${b.hn} (${b.patientName}) shifted to ${formatDateToDMY(b.dateOfUse)} (Reason: ${b.rolloverStatus?.reason || 'n/a'}). Notified by: ${b.rolloverStatus?.notifyingNurse || 'n/a'}. Review and verify again`;
+                spawnAlert(alertMsg, 'info', b.id, b.hn);
+              } else if (isClerk) {
+                const alertMsg = isThai
+                  ? `⚠️ เลื่อนกำหนดรักษาโรค: คนไข้ HN: ${b.hn} (${b.patientName}) เลื่อนใช้ยาเป็นวันที่ ${formatDateToDMY(b.dateOfUse)}. เปลี่ยนรายการจัดเตรียมคิวตามลำดับรอบใหม่ (ไม่ต้องตรวจซ้ำ)`
+                  : `⚠️ Queue Updated: HN: ${b.hn} (${b.patientName}) postponed to ${formatDateToDMY(b.dateOfUse)}. Inventory schedule moved accordingly (No verification review required)`;
+                spawnAlert(alertMsg, 'info', b.id, b.hn);
+              }
+            }
+          }
+
           if (change.type === 'added') {
-            const b = change.doc.data() as Booking;
             const currentStatus = b.pharmacistVerification?.status || 'Pending';
             prevVerificationStatusRef.current[b.id] = currentStatus;
 
@@ -233,7 +265,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             }
           }
           if (change.type === 'modified') {
-            const b = change.doc.data() as Booking;
             const prevStatus = prevVerificationStatusRef.current[b.id];
             const currentStatus = b.pharmacistVerification?.status || 'Pending';
             prevVerificationStatusRef.current[b.id] = currentStatus;
@@ -569,6 +600,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       if (b.medicineReceived !== undefined) updateData.medicineReceived = b.medicineReceived;
       if (b.pdfPrinted !== undefined) updateData.pdfPrinted = b.pdfPrinted;
       if (b.stickerPrinted !== undefined) updateData.stickerPrinted = b.stickerPrinted;
+      if (b.holdStatus !== undefined) updateData.holdStatus = b.holdStatus;
+      if (b.rolloverStatus !== undefined) updateData.rolloverStatus = b.rolloverStatus;
+      if (b.pharmacistVerification !== undefined) updateData.pharmacistVerification = b.pharmacistVerification;
+      if (b.clerkVerification !== undefined) updateData.clerkVerification = b.clerkVerification;
       if (b.staff) {
         updateData.staff = {
           doctor: b.staff.doctor || '',

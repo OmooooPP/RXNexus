@@ -9,7 +9,7 @@ export default function QueueCalendar() {
   const t = i18n[language];
 
   // Selected date reference for month navigation
-  const [currentDate, setCurrentDate] = useState<Date>(new Date(2026, 4, 20)); // Focus on May 2026 based on timestamp
+  const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
 
   const year = currentDate.getFullYear();
@@ -171,22 +171,37 @@ export default function QueueCalendar() {
                   {dayBookings.map((b) => {
                     const isAllClerkDelivered = b.clerkVerification.status === 'Ready-to-use';
                     const isOnco = b.mode === 'Oncology';
+                    const isHeld = b.holdStatus?.isHeld === true;
+
+                    let bgClass = '';
+                    if (isHeld) {
+                      bgClass = 'bg-slate-100 text-slate-500 hover:bg-slate-200 md:border-slate-350';
+                    } else if (isOnco) {
+                      bgClass = 'bg-red-50 text-red-700 hover:bg-red-100 md:border-red-200/50';
+                    } else {
+                      bgClass = 'bg-blue-50 text-blue-700 hover:bg-blue-100 md:border-blue-200/50';
+                    }
 
                     return (
                       <div
                         id={`calendar-event-${b.id}`}
                         key={b.id}
                         onClick={() => setSelectedBooking(b)}
-                        className={`p-0.5 md:p-1 rounded md:border text-[8px] md:text-[10px] font-semibold truncate cursor-pointer transition-all hover:scale-[1.02] flex items-center md:justify-between ${
-                          isOnco
-                            ? 'bg-red-50 text-red-700 hover:bg-red-100 md:border-red-200/50'
-                            : 'bg-blue-50 text-blue-700 hover:bg-blue-100 md:border-blue-200/50'
-                        }`}
+                        className={`p-0.5 md:p-1 rounded md:border text-[8px] md:text-[10px] font-semibold truncate cursor-pointer transition-all hover:scale-[1.02] flex items-center md:justify-between ${bgClass}`}
                         title={b.patientName}
                       >
                         <span className="truncate flex-1">
-                          <span className="hidden md:inline">{isAllClerkDelivered ? '✅ ' : '⚠️ '}</span>
-                          <span className="md:hidden">{isAllClerkDelivered ? '✅' : '⚠️'} </span>
+                          {isHeld ? (
+                            <span className="font-extrabold text-[8.5px] mr-1">⏸️ HOLD | </span>
+                          ) : (
+                            <>
+                              <span className="hidden md:inline">{isAllClerkDelivered ? '✅ ' : '⚠️ '}</span>
+                              <span className="md:hidden">{isAllClerkDelivered ? '✅' : '⚠️'} </span>
+                            </>
+                          )}
+                          {b.rolloverStatus && (
+                            <span className="font-extrabold mr-1">🔄 </span>
+                          )}
                           {b.patientName}
                         </span>
                       </div>
@@ -329,6 +344,59 @@ export default function QueueCalendar() {
                 <div>• {t.selectDoctor}: <span className="font-semibold text-neutral-700">{selectedBooking.staff.doctor}</span></div>
                 <div>• {t.selectNurse}: <span className="font-semibold text-neutral-700">{selectedBooking.staff.nurse}</span></div>
               </div>
+
+              {/* Hold and Rollover statuses */}
+              {(selectedBooking.holdStatus?.reason || selectedBooking.rolloverStatus) && (
+                <div className="p-3.5 rounded-xl border border-neutral-100 bg-slate-50 space-y-2 text-xs font-sans">
+                  {selectedBooking.holdStatus?.isHeld && (
+                    <div className="flex items-start gap-2 text-amber-800">
+                      <span className="text-sm leading-none">⚠️</span>
+                      <div>
+                        <p className="font-bold text-amber-900">Medication Currently Held (ระงับชั่วคราว)</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          Reason: <span className="font-medium text-slate-700">{selectedBooking.holdStatus.reason}</span>
+                          {(selectedBooking.holdStatus.notifyingNurse || (selectedBooking.holdStatus as any).notifiedNurse) && (
+                            <> | Notified by Nurse: <span className="font-medium text-slate-700">{selectedBooking.holdStatus.notifyingNurse || (selectedBooking.holdStatus as any).notifiedNurse}</span></>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {!selectedBooking.holdStatus?.isHeld && selectedBooking.holdStatus?.reason && (
+                    <div className="flex items-start gap-2 text-emerald-800">
+                      <span className="text-sm leading-none">🔄</span>
+                      <div>
+                        <p className="font-bold text-emerald-950">Medication Restored / Continued (คืนสถานะแล้ว)</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          Unhold Reason: <span className="font-medium text-slate-705">{selectedBooking.holdStatus.unholdReason || selectedBooking.holdStatus.reason}</span>
+                          {(selectedBooking.holdStatus.unholdNurse || selectedBooking.holdStatus.notifyingNurse || (selectedBooking.holdStatus as any).notifiedNurse) && (
+                            <> | By Nurse: <span className="font-medium text-slate-705">{selectedBooking.holdStatus.unholdNurse || selectedBooking.holdStatus.notifyingNurse || (selectedBooking.holdStatus as any).notifiedNurse}</span></>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedBooking.rolloverStatus && (
+                    <div className="flex items-start gap-2 text-purple-800 border-t border-slate-200/55 pt-2">
+                      <span className="text-sm leading-none">📅</span>
+                      <div>
+                        <p className="font-bold text-purple-900">Rescheduled Rollover (เปลี่ยนวันบริหารให้ยา)</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          Original Date: <span className="line-through">{formatDateToDMY(selectedBooking.rolloverStatus.originalDateOfUse || (selectedBooking.rolloverStatus as any).originalDate)}</span> ➡️ Rescheduled Date: <span className="font-bold text-purple-700">{formatDateToDMY(selectedBooking.rolloverStatus.newDateOfUse)}</span>
+                        </p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          Reason: <span className="font-medium text-slate-700">{selectedBooking.rolloverStatus.reason}</span>
+                          {(selectedBooking.rolloverStatus.notifyingNurse || (selectedBooking.rolloverStatus as any).notifiedNurse) && (
+                            <> | Reported by Nurse: <span className="font-medium text-slate-700">{selectedBooking.rolloverStatus.notifyingNurse || (selectedBooking.rolloverStatus as any).notifiedNurse}</span></>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Model Action footer */}

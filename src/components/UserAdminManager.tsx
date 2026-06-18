@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { i18n } from '../lib/i18n';
 import { User, UserRole } from '../types';
-import { Shield, Plus, Trash2, Edit2, Lock, Check } from 'lucide-react';
+import { Shield, Plus, Trash2, Edit2, Lock, Check, Database } from 'lucide-react';
 
 const AVAILABLE_ROLES: { id: UserRole; name: string }[] = [
   { id: 'Admin', name: 'Admin' },
@@ -17,6 +17,10 @@ export default function UserAdminManager() {
   const {
     currentUser,
     users,
+    bookings = [],
+    drugs = [],
+    logs = [],
+    owingMeds = [],
     language,
     createUser,
     updateUser,
@@ -25,6 +29,35 @@ export default function UserAdminManager() {
   } = useApp();
 
   const t = i18n[language];
+
+  // Estimate Firestore document physical footprint size
+  const estimateDocSize = (doc: any) => {
+    if (!doc) return 0;
+    // JSON length in characters/bytes is a standard web-safe proxy
+    const str = JSON.stringify(doc);
+    return str.length + 120; // Adding 120 bytes for document path, ID and indices overhead
+  };
+
+  const estimateCollectionSize = (list: any[]) => {
+    if (!list || list.length === 0) return 0;
+    return list.reduce((acc, item) => acc + estimateDocSize(item), 0);
+  };
+
+  const bookingsSize = estimateCollectionSize(bookings);
+  const drugsSize = estimateCollectionSize(drugs);
+  const usersSize = estimateCollectionSize(users);
+  const logsSize = estimateCollectionSize(logs);
+  const owingMedsSize = estimateCollectionSize(owingMeds);
+
+  const totalBytes = bookingsSize + drugsSize + usersSize + logsSize + owingMedsSize;
+
+  // Format Helper
+  const formatSize = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  };
 
   // Protect access control block
   const isAdmin = currentUser?.role === 'Admin' || currentUser?.roles?.includes('Admin');
@@ -315,6 +348,182 @@ export default function UserAdminManager() {
           </form>
         </div>
       )}
+
+      {/* Real-time Firebase Firestore Space Footprint Widget */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-md p-5 sm:p-6 space-y-5">
+        <div id="firebase-usage-stats-header" className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-150 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl border border-blue-100">
+              <Database className="w-5.5 h-5.5 text-blue-600" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-tight">
+                {language === 'TH' ? 'ข้อมูลการใช้พื้นที่จัดเก็บฐานข้อมูล Cloud Firestore' : 'Cloud Firestore Database Metrics'}
+              </h3>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                {language === 'TH' ? 'แสดงข้อมูลขนาดพื้นที่แบบเรียลไทม์จำแนกตามประเภทข้อมูลของคลินิก' : 'Real-time database footprint and byte estimates across clinic modules'}
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <span className="flex h-2 w-2 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span className="text-[10px] text-emerald-600 font-extrabold uppercase font-mono tracking-wider">
+              {language === 'TH' ? 'ซิงก์ข้อมูลสดเรียลไทม์' : 'Live Syncing'}
+            </span>
+          </div>
+        </div>
+
+        {/* Top summary row */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-200/50 flex flex-col justify-between space-y-2">
+            <div className="text-[10px] text-slate-400 uppercase font-black tracking-wider">
+              {language === 'TH' ? 'พื้นที่ที่ใช้ทั้งหมด (MB/KB)' : 'Total Database Storage'}
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl font-black text-blue-900 tracking-tight leading-none">
+                {formatSize(totalBytes)}
+              </span>
+              <span className="text-[10px] text-slate-400 font-bold">
+                ({totalBytes.toLocaleString()} bytes)
+              </span>
+            </div>
+            <div className="text-[9px] text-slate-400">
+              {language === 'TH' ? 'คำนวณจากขนาดเอกสารและเมทาดาต้าหลัก' : 'Approximate JSON physical storage space'}
+            </div>
+          </div>
+
+          <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-200/50 flex flex-col justify-between space-y-2">
+            <div className="text-[10px] text-slate-400 uppercase font-black tracking-wider">
+              {language === 'TH' ? 'จำนวนเอกสารรวมทุกโมดูล' : 'Total System Documents'}
+            </div>
+            <div className="text-2xl font-black text-slate-800 tracking-tight leading-none">
+              {(bookings.length + drugs.length + users.length + logs.length + owingMeds.length).toLocaleString()} <span className="text-xs text-slate-400 font-bold uppercase">Docs</span>
+            </div>
+            <div className="text-[9px] text-slate-400">
+              {language === 'TH' ? 'นับจากจำนวนเรคคอร์ดทั้งหมดบนคลาวด์' : 'Total unique data nodes saved'}
+            </div>
+          </div>
+
+          <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-200/50 flex flex-col justify-between space-y-2">
+            <div className="text-[10px] text-slate-400 uppercase font-black tracking-wider">
+              {language === 'TH' ? 'โควตาฟรีคงเหลือ (Firestore Tier)' : 'Free Tier Utilization'}
+            </div>
+            <div>
+              <div className="text-sm font-extrabold text-emerald-700 block leading-tight">
+                {(totalBytes / (1024 * 1024 * 1024) * 100).toFixed(6)}% used
+              </div>
+              <span className="text-[10px] text-slate-500 font-bold block mt-0.5">
+                {language === 'TH' ? 'เหลือพื้นที่ฟรีอีก 99.99% (จากโควตา 1 GB)' : '99.99%+ remaining of 1,000,000 KB'}
+              </span>
+            </div>
+            <div className="text-[9px] text-slate-400">
+              {language === 'TH' ? 'ความจุฟรีคงไว้สูงโดยรอบระบบ' : 'Daily reads/writes quota independent'}
+            </div>
+          </div>
+        </div>
+
+        {/* Visual progress share allocation */}
+        <div className="space-y-2">
+          <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+            <span>{language === 'TH' ? 'สัดส่วนพื้นที่แบ่งตามโมดูล' : 'Space Allocation Mix'}</span>
+            <span>{totalBytes > 0 ? '100% Shared' : '0 B'}</span>
+          </div>
+          <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden flex border border-slate-200/30">
+            {bookingsSize > 0 && <div style={{ width: `${(bookingsSize / (totalBytes || 1)) * 100}%` }} className="bg-blue-500 h-full transition-all" title="Bookings" />}
+            {drugsSize > 0 && <div style={{ width: `${(drugsSize / (totalBytes || 1)) * 100}%` }} className="bg-emerald-500 h-full transition-all" title="Drugs" />}
+            {usersSize > 0 && <div style={{ width: `${(usersSize / (totalBytes || 1)) * 100}%` }} className="bg-purple-500 h-full transition-all" title="Users" />}
+            {owingMedsSize > 0 && <div style={{ width: `${(owingMedsSize / (totalBytes || 1)) * 100}%` }} className="bg-amber-500 h-full transition-all" title="Owings" />}
+            {logsSize > 0 && <div style={{ width: `${(logsSize / (totalBytes || 1)) * 100}%` }} className="bg-slate-500 h-full transition-all" title="System Logs" />}
+          </div>
+        </div>
+
+        {/* Explicit collection grid break-down items */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {/* Bookings */}
+          <div className="border border-blue-100 bg-blue-50/20 p-3 rounded-xl space-y-1.5 flex flex-col justify-between">
+            <div className="flex items-center gap-1.5 text-blue-700 font-bold text-[10px] uppercase truncate">
+              <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+              <span>{language === 'TH' ? 'รายการจองยา' : 'Bookings'}</span>
+            </div>
+            <div>
+              <div className="text-sm font-black text-slate-800 leading-tight">
+                {formatSize(bookingsSize)}
+              </div>
+              <span className="text-[10px] text-slate-400 block font-mono">
+                {bookings.length} docs ({(totalBytes > 0 ? (bookingsSize / totalBytes) * 100 : 0).toFixed(1)}%)
+              </span>
+            </div>
+          </div>
+
+          {/* Drugs */}
+          <div className="border border-emerald-100 bg-emerald-50/20 p-3 rounded-xl space-y-1.5 flex flex-col justify-between">
+            <div className="flex items-center gap-1.5 text-emerald-700 font-bold text-[10px] uppercase truncate">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              <span>{language === 'TH' ? 'เวชภัณฑ์และยา' : 'Drugs'}</span>
+            </div>
+            <div>
+              <div className="text-sm font-black text-slate-800 leading-tight">
+                {formatSize(drugsSize)}
+              </div>
+              <span className="text-[10px] text-slate-400 block font-mono">
+                {drugs.length} docs ({(totalBytes > 0 ? (drugsSize / totalBytes) * 100 : 0).toFixed(1)}%)
+              </span>
+            </div>
+          </div>
+
+          {/* Users */}
+          <div className="border border-purple-100 bg-purple-50/20 p-3 rounded-xl space-y-1.5 flex flex-col justify-between">
+            <div className="flex items-center gap-1.5 text-purple-700 font-bold text-[10px] uppercase truncate">
+              <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+              <span>{language === 'TH' ? 'การมอบหมายสิทธิ์' : 'Admin Assign Role'}</span>
+            </div>
+            <div>
+              <div className="text-sm font-black text-slate-800 leading-tight">
+                {formatSize(usersSize)}
+              </div>
+              <span className="text-[10px] text-slate-400 block font-mono">
+                {users.length} docs ({(totalBytes > 0 ? (usersSize / totalBytes) * 100 : 0).toFixed(1)}%)
+              </span>
+            </div>
+          </div>
+
+          {/* Owings */}
+          <div className="border border-amber-100 bg-amber-50/20 p-3 rounded-xl space-y-1.5 flex flex-col justify-between">
+            <div className="flex items-center gap-1.5 text-amber-700 font-bold text-[10px] uppercase truncate">
+              <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+              <span>{language === 'TH' ? 'รายการยาค้างส่ง' : 'Owing Meds'}</span>
+            </div>
+            <div>
+              <div className="text-sm font-black text-slate-800 leading-tight">
+                {formatSize(owingMedsSize)}
+              </div>
+              <span className="text-[10px] text-slate-400 block font-mono">
+                {owingMeds.length} docs ({(totalBytes > 0 ? (owingMedsSize / totalBytes) * 100 : 0).toFixed(1)}%)
+              </span>
+            </div>
+          </div>
+
+          {/* Audit Logs */}
+          <div className="border border-slate-200 bg-slate-50/20 p-3 rounded-xl space-y-1.5 col-span-2 md:col-span-1 flex flex-col justify-between">
+            <div className="flex items-center gap-1.5 text-slate-700 font-bold text-[10px] uppercase truncate">
+              <div className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+              <span>{language === 'TH' ? 'ประวัติระบบ' : 'System Logs'}</span>
+            </div>
+            <div>
+              <div className="text-sm font-black text-slate-800 leading-tight">
+                {formatSize(logsSize)}
+              </div>
+              <span className="text-[10px] text-slate-400 block font-mono">
+                {logs.length} docs ({(totalBytes > 0 ? (logsSize / totalBytes) * 100 : 0).toFixed(1)}%)
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Registered Staff Card views */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden text-xs">
