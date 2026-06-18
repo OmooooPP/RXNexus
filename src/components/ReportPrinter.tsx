@@ -686,26 +686,26 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
                                         <span>{row.patientName}</span>
                                         {row.holdStatus?.isHeld && (
                                           <div className="mt-1 flex flex-col gap-0.5">
-                                            <span className="self-start px-1.5 py-0.2 bg-red-100 text-red-750 border border-red-200 rounded text-[8.5px] font-black whitespace-nowrap inline-block">
-                                              Hold
+                                            <span className="self-start px-1.5 py-0.2 bg-red-100 text-red-750 border border-red-200 rounded text-[8.5px] font-black whitespace-nowrap inline-flex items-center gap-1">
+                                              <span>Hold</span>
+                                              {(row.holdStatus.heldAt || (row.holdStatus as any).timestamp) && (
+                                                <span className="font-mono text-[7.5px] font-bold opacity-80 border-l border-red-300 pl-1">
+                                                  {formatTimestamp(row.holdStatus.heldAt || (row.holdStatus as any).timestamp)}
+                                                </span>
+                                              )}
                                             </span>
-                                            {row.holdStatus.heldAt && (
-                                              <span className="text-[8.5px] text-red-650 font-mono font-bold block leading-none">
-                                                Hold: {formatTimestamp(row.holdStatus.heldAt)}
-                                              </span>
-                                            )}
                                           </div>
                                         )}
                                         {row.rolloverStatus && (
                                           <div className="mt-1 flex flex-col gap-0.5">
-                                            <span className="self-start px-1.5 py-0.2 bg-purple-100 text-purple-750 border border-purple-200 rounded text-[8.5px] font-black whitespace-nowrap inline-block">
-                                              {language === 'TH' ? 'เปลี่ยนวัน' : 'Rollover'}
+                                            <span className="self-start px-1.5 py-0.2 bg-purple-100 text-purple-750 border border-purple-200 rounded text-[8.5px] font-black whitespace-nowrap inline-flex items-center gap-1">
+                                              <span>{language === 'TH' ? 'เปลี่ยนวัน' : 'Rollover'}</span>
+                                              {(row.rolloverStatus.rolledOverAt || (row.rolloverStatus as any).rolledOverAt) && (
+                                                <span className="font-mono text-[7.5px] font-bold opacity-80 border-l border-purple-300 pl-1">
+                                                  {formatTimestamp(row.rolloverStatus.rolledOverAt || (row.rolloverStatus as any).rolledOverAt)}
+                                                </span>
+                                              )}
                                             </span>
-                                            {row.rolloverStatus.rolledOverAt && (
-                                              <span className="text-[8.5px] text-purple-650 font-mono font-bold block leading-none">
-                                                {language === 'TH' ? 'เลื่อนวัน:' : 'Rolled:'} {formatTimestamp(row.rolloverStatus.rolledOverAt)}
-                                              </span>
-                                            )}
                                           </div>
                                         )}
                                       </td>
@@ -1160,26 +1160,26 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="font-bold text-slate-900">{row.patientName}</span>
                               {row.holdStatus?.isHeld && (
-                                <span className="px-1.5 py-0.2 bg-red-105 text-red-700 border border-red-200 rounded text-[9px] font-black whitespace-nowrap">
-                                  Hold
+                                <span className="px-1.5 py-0.5 bg-red-100 text-red-700 border border-red-200 rounded text-[9px] font-black whitespace-nowrap inline-flex items-center gap-1">
+                                  <span>Hold</span>
+                                  {(row.holdStatus.heldAt || (row.holdStatus as any).timestamp) && (
+                                    <span className="font-mono text-[8px] font-bold opacity-80 border-l border-red-300 pl-1">
+                                      {formatTimestamp(row.holdStatus.heldAt || (row.holdStatus as any).timestamp)}
+                                    </span>
+                                  )}
                                 </span>
                               )}
                               {row.rolloverStatus && (
-                                <span className="px-1.5 py-0.2 bg-purple-105 text-purple-700 border border-purple-200 rounded text-[9px] font-black whitespace-nowrap">
-                                  {language === 'TH' ? 'เปลี่ยนวัน' : 'Rollover'}
+                                <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 border border-purple-200 rounded text-[9px] font-black whitespace-nowrap inline-flex items-center gap-1">
+                                  <span>{language === 'TH' ? 'เปลี่ยนวัน' : 'Rollover'}</span>
+                                  {(row.rolloverStatus.rolledOverAt || (row.rolloverStatus as any).rolledOverAt) && (
+                                    <span className="font-mono text-[8px] font-bold opacity-80 border-l border-purple-300 pl-1">
+                                      {formatTimestamp(row.rolloverStatus.rolledOverAt || (row.rolloverStatus as any).rolledOverAt)}
+                                    </span>
+                                  )}
                                 </span>
                               )}
                             </div>
-                            {row.holdStatus?.isHeld && row.holdStatus.heldAt && (
-                              <span className="text-[9.5px] text-red-650 font-mono font-bold leading-none">
-                                Hold: {formatTimestamp(row.holdStatus.heldAt)}
-                              </span>
-                            )}
-                            {row.rolloverStatus && row.rolloverStatus.rolledOverAt && (
-                              <span className="text-[9.5px] text-purple-650 font-mono font-bold leading-none">
-                                {language === 'TH' ? 'เลื่อนวัน:' : 'Rolled:'} {formatTimestamp(row.rolloverStatus.rolledOverAt)}
-                              </span>
-                            )}
                           </div>
                           <span className="text-[10px] text-slate-450 block font-sarabun font-extrabold whitespace-nowrap">HN: {row.hn}</span>
                         </td>
