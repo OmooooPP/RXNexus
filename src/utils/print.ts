@@ -36,8 +36,8 @@ export function printElementByNewWindow(elementId: string, pageTitle: string = '
               theme: {
                 extend: {
                   fontFamily: {
-                    sans: ['"Prompt"', '"Sarabun"', '"Inter"', 'sans-serif'],
-                    mono: ['"JetBrains Mono"', 'monospace'],
+                    sans: ['"THSarabun"', '"TH Sarabun New"', '"Sarabun"', 'sans-serif'],
+                    mono: ['"THSarabun"', '"TH Sarabun New"', '"Sarabun"', 'monospace'],
                   }
                 }
               }
@@ -45,13 +45,16 @@ export function printElementByNewWindow(elementId: string, pageTitle: string = '
           </script>
           <style>
             body {
-              font-family: "Prompt", "Sarabun", "Inter", sans-serif;
+              font-family: "THSarabun", "TH Sarabun New", "Sarabun", sans-serif;
               background-color: #ffffff;
               color: #1e293b;
               margin: 0;
               padding: 15mm 15mm 15mm 15mm !important;
               -webkit-print-color-adjust: exact !important;
               print-color-adjust: exact !important;
+            }
+            * {
+              font-family: "THSarabun", "TH Sarabun New", "Sarabun", sans-serif !important;
             }
             @page {
               size: A4;
