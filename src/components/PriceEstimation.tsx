@@ -412,23 +412,38 @@ export default function PriceEstimation() {
       <div id="onco-estimation-printable-slip" className="hidden">
         <div className="font-sans text-slate-900 leading-normal p-4 space-y-6 max-w-[210mm] mx-auto bg-white border border-slate-100">
           
-          {/* Document Header */}
-          <div className="border-b-2 border-slate-900 pb-4 flex justify-between items-start">
-            <div className="space-y-1">
-              <h2 className="text-lg font-black tracking-tight text-blue-900 uppercase">
-                {language === 'TH' ? 'โรงพยาบาลกรุงเทพพิษณุโลก' : 'BANGKOK HOSPITAL PHITSANULOK'}
-              </h2>
-              <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">
-                {language === 'TH' ? 'ฝ่ายบริการเภสัชกรรม คลินิกเคมีบำบัด' : 'Pharmacy Services Dept — Oncology Therapeutics'}
-              </p>
-              <h1 className="text-md font-extrabold text-slate-800 pt-2 tracking-tight">
-                {language === 'TH' ? 'เอกสารประมาณการราคายาเคมีบำบัด' : 'ONCOLOGY MEDICATION PRICE ESTIMATION'}
-              </h1>
+          {/* Document Header - Refined Layout with Pattaya Logo */}
+          <div className="flex justify-between items-center pb-4 border-b-2 border-slate-300">
+            <div className="flex items-center gap-3.5">
+              <img
+                src="https://static.bangkokhospital.com/uploads/2025/08/pattaya.svg"
+                alt="Bangkok Hospital Pattaya Logo"
+                className="h-12 w-auto object-contain"
+                referrerPolicy="no-referrer"
+              />
+              <div className="border-l border-slate-300 pl-3.5">
+                <h2 className="text-base font-black tracking-tight text-blue-900 uppercase">
+                  {language === 'TH' ? 'โรงพยาบาลกรุงเทพพัทยา' : 'BANGKOK HOSPITAL PATTAYA'}
+                </h2>
+                <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">
+                  {language === 'TH' ? 'ฝ่ายบริการเภสัชกรรม คลินิกเคมีบำบัดและมะเร็งวิทยา' : 'Pharmacy Services Dept — Oncology Therapeutics'}
+                </p>
+              </div>
             </div>
             <div className="text-right text-[10px] font-mono text-slate-500 space-y-0.5">
-              <p>DATE: {estimationDate}</p>
-              <p className="font-bold text-purple-700">FOR ESTIMATION ONLY</p>
+              <p>DATE / วันที่: {estimationDate}</p>
+              <p className="font-bold text-purple-700 uppercase tracking-wider">{language === 'TH' ? 'เอกสารประเมินราคายาเคมีบำบัด' : 'FOR ESTIMATION ONLY'}</p>
             </div>
+          </div>
+
+          {/* Document Title */}
+          <div className="text-center my-4">
+            <h1 className="text-md font-black text-slate-900 tracking-tight uppercase leading-none">
+              {language === 'TH' ? 'ใบประมาณการราคายาเคมีบำบัดและเวชภัณฑ์' : 'ONCOLOGY MEDICATION PRICE ESTIMATION REPORT'}
+            </h1>
+            <p className="text-[9.5px] text-slate-400 uppercase tracking-widest font-semibold font-mono mt-1 leading-none">
+              {language === 'TH' ? 'เอกสารประมาณการค่ายาเพื่อประกอบการตัดสินใจรักษาพยาบาล' : 'OFFICIAL CLINICAL MEDICATION COST VALUATION'}
+            </p>
           </div>
 
           {/* Patient Details Subgrid */}
@@ -552,7 +567,7 @@ export default function PriceEstimation() {
 
           {/* Footer branding */}
           <div className="text-center text-[8.5px] text-slate-400 uppercase tracking-widest pt-6 border-t border-slate-100 no-break">
-            {language === 'TH' ? 'พิมพ์จากระบบจองและสำรองยาเวชภัณฑ์ RxNexus — โรงพยาบาลกรุงเทพพิษณุโลก' : 'PREPARED VIA RXNEXUS MEDICATION SYSTEM — BANGKOK HOSPITAL PHITSANULOK'}
+            {language === 'TH' ? 'พิมพ์จากระบบจองและสำรองยาเวชภัณฑ์ RxNexus — โรงพยาบาลกรุงเทพพัทยา' : 'PREPARED VIA RXNEXUS MEDICATION SYSTEM — BANGKOK HOSPITAL PATTAYA'}
           </div>
 
         </div>
