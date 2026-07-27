@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { i18n } from '../lib/i18n';
 import { Booking, formatDateToDMY } from '../types';
-import { Search, Eye, CheckCircle, Clock, Trash, Edit, Check, Printer, FileText } from 'lucide-react';
+import { Search, Eye, CheckCircle, Clock, Trash, Edit, Check, Printer, FileText, ZoomIn, ZoomOut, RotateCcw, Maximize2, X } from 'lucide-react';
 
 interface DataTableProps {
   onEditClick?: (id: string) => void;
@@ -20,7 +20,8 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
     verifyClerk,
     deleteBooking,
     updateBooking,
-    loading
+    loading,
+    spawnAlert
   } = useApp();
 
   const t = i18n[language];
@@ -29,11 +30,18 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
   const [activeTab, setActiveTab] = useState<'All' | 'General' | 'Oncology' | 'Hold'>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedImageZoom, setSelectedImageZoom] = useState<number>(1);
+  const [verifyImageZoom, setVerifyImageZoom] = useState<number>(1);
 
   // Clinical Hold and Date Rescheduling (Rollover) triggers
   const [holdingBooking, setHoldingBooking] = useState<Booking | null>(null);
   const [unholdingBooking, setUnholdingBooking] = useState<Booking | null>(null);
   const [rollingBooking, setRollingBooking] = useState<Booking | null>(null);
+  const [deletingBookingId, setDeletingBookingId] = useState<string | null>(null);
+
+  const [activeVerifyingBooking, setActiveVerifyingBooking] = useState<Booking | null>(null);
+  const [verifyingLocation, setVerifyingLocation] = useState('');
+  const [verifyingPharmacistName, setVerifyingPharmacistName] = useState('');
 
   const [holdReason, setHoldReason] = useState('');
   const [nurseName, setNurseName] = useState('');
@@ -226,6 +234,7 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
                             setUnholdingBooking(b);
                             setHoldReason('');
                             setNurseName('');
+                            setRolloverDate(b.dateOfUse || '');
                           }}
                           className="px-2.5 py-1 text-[10px] inline-flex items-center justify-center font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded shadow-xs transition-colors cursor-pointer"
                         >
@@ -285,7 +294,7 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
                           {b.id}
                         </span>
                         <span className="text-[10px] text-slate-400">
-                          Booked: {formatDateToDMY(b.bookingDate)}
+                          {language === 'TH' ? 'วันที่จอง' : 'Booked'}: {formatDateToDMY(b.bookingDate)}
                         </span>
                       </td>
 
@@ -301,8 +310,34 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
                             </span>
                           )}
                         </div>
-                        <div className="flex flex-wrap gap-2 items-center text-[10px] text-slate-400 mt-1">
-                          <span className="font-mono bg-slate-100/90 text-slate-700 px-1.5 py-0.5 rounded text-[9.5px] font-bold tracking-wider whitespace-nowrap inline-block">HN: {b.hn}</span>
+                        <div className="flex flex-wrap gap-2 items-center text-[10px] text-slate-400 mt-1 text-xs">
+                          {currentUser?.role === 'Pharmacist' || currentUser?.role === 'Admin' ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!phVerifiedValueDone) {
+                                  setActiveVerifyingBooking(b);
+                                  setVerifyingLocation(b.pharmacyLocation || '');
+                                  setVerifyingPharmacistName(b.staff?.pharmacist || currentUser?.name || '');
+                                } else {
+                                  setSearchQuery(b.hn);
+                                  navigator.clipboard.writeText(b.hn);
+                                  spawnAlert(language === 'TH' ? `คัดลอก HN: ${b.hn} และกรองข้อมูลเรียบร้อยแล้ว` : `Copied HN: ${b.hn} and filtered table!`, 'success');
+                                }
+                              }}
+                              className={`font-mono px-2 py-0.5 rounded text-[10px] font-bold tracking-wider whitespace-nowrap inline-flex items-center gap-1 cursor-pointer transition-all active:scale-95 border ${
+                                !phVerifiedValueDone
+                                  ? 'bg-rose-600 hover:bg-rose-700 text-white border-rose-750 animate-pulse'
+                                  : 'bg-slate-100/90 hover:bg-slate-200 text-slate-700 border-slate-200'
+                              }`}
+                              title={!phVerifiedValueDone ? (language === 'TH' ? "ด่วน: รอเภสัชกรตรวจสอบ คลิกเพื่อดำเนินการตรวจสอบทันที" : "Urgent: Awaiting pharmacist verification. Click to verify now!") : (language === 'TH' ? "คลิกเพื่อคัดลอก HN และกรองข้อมูลคนไข้" : "Click to copy HN and filter")}
+                            >
+                              {!phVerifiedValueDone && <span className="w-1.5 h-1.5 rounded-full bg-white inline-block animate-ping shrink-0" />}
+                              📋 HN: {b.hn} {!phVerifiedValueDone && (language === 'TH' ? ' (รอตรวจสอบ)' : ' (Awaiting Verify)')}
+                            </button>
+                          ) : (
+                            <span className="font-mono bg-slate-100/90 text-slate-700 px-1.5 py-0.5 rounded text-[9.5px] font-bold tracking-wider whitespace-nowrap inline-block">HN: {b.hn}</span>
+                          )}
                           <span>•</span>
                           <span className="uppercase">{b.medications[0]?.priceType || 'OPD'}</span>
                           <span>•</span>
@@ -501,7 +536,11 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
                             <button
                               id={`verify-pharmacist-${b.id}`}
                               type="button"
-                              onClick={() => verifyPharmacist(b.id)}
+                              onClick={() => {
+                                setActiveVerifyingBooking(b);
+                                setVerifyingLocation(b.pharmacyLocation || '');
+                                setVerifyingPharmacistName(b.staff?.pharmacist || currentUser?.name || '');
+                              }}
                               disabled={loading}
                               className="p-1 px-2.5 bg-blue-500 hover:bg-blue-600 text-white text-[10px] font-bold rounded-lg transition-colors cursor-pointer shadow-xs"
                             >
@@ -545,11 +584,7 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
                               {currentUser?.role === 'Admin' && (
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    if (confirm('Verify deleting clinical reservation? This operation cannot be rolled back!')) {
-                                      deleteBooking(b.id);
-                                    }
-                                  }}
+                                  onClick={() => setDeletingBookingId(b.id)}
                                   className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
                                   title="Delete patient queue line"
                                 >
@@ -597,6 +632,7 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
                                     setUnholdingBooking(b);
                                     setHoldReason('');
                                     setNurseName('');
+                                    setRolloverDate(b.dateOfUse || '');
                                   }}
                                   className="p-1 px-1.5 border border-emerald-250 text-emerald-700 bg-emerald-55/70 hover:bg-emerald-100 rounded text-[9.5px] font-black uppercase leading-none cursor-pointer"
                                   title="Continue dispensing flow"
@@ -618,30 +654,77 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
       </div>
       )}
 
-      {/* Embedded Prescription Preview Popup Modal */}
+      {/* Embedded Prescription Preview Popup Modal with Zoom */}
       {selectedImage && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 transition-all animate-fade-in">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-2xl max-w-lg w-full flex flex-col overflow-hidden max-h-[85vh]">
-            <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center text-xs">
+        <div className="fixed inset-0 bg-slate-900/75 backdrop-blur-xs flex items-center justify-center z-50 p-4 transition-all animate-fade-in" onClick={() => { setSelectedImage(null); setSelectedImageZoom(1); }}>
+          <div className="bg-white rounded-xl border border-slate-200 shadow-2xl max-w-2xl w-full flex flex-col overflow-hidden max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            <div className="p-3 bg-slate-50 border-b border-slate-200 flex justify-between items-center text-xs">
               <h3 className="font-bold text-xs text-slate-700">Enterprise Prescription Media Attachment</h3>
-              <button
-                type="button"
-                onClick={() => setSelectedImage(null)}
-                className="text-slate-400 hover:text-slate-600 text-sm font-bold font-mono p-1 hover:bg-slate-100 rounded-lg cursor-pointer"
-              >
-                Close (ESC)
-              </button>
+              
+              <div className="flex items-center gap-2">
+                {/* Zoom controls */}
+                <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-1 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedImageZoom((prev) => Math.max(0.5, prev - 0.25))}
+                    className="p-1 hover:bg-slate-100 rounded text-slate-600 transition-colors cursor-pointer"
+                    title="Zoom Out (-)"
+                  >
+                    <ZoomOut className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="font-mono font-bold text-blue-600 min-w-[40px] text-center text-[11px]">
+                    {Math.round(selectedImageZoom * 100)}%
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedImageZoom((prev) => Math.min(4, prev + 0.25))}
+                    className="p-1 hover:bg-slate-100 rounded text-slate-600 transition-colors cursor-pointer"
+                    title="Zoom In (+)"
+                  >
+                    <ZoomIn className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedImageZoom(1)}
+                    className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                    title="Reset (100%)"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => { setSelectedImage(null); setSelectedImageZoom(1); }}
+                  className="text-slate-400 hover:text-slate-600 text-sm font-bold p-1 hover:bg-slate-100 rounded-lg cursor-pointer flex items-center gap-1"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
-            <div className="p-6 overflow-y-auto flex items-center justify-center bg-slate-900">
+            
+            <div 
+              className="p-6 overflow-auto flex items-center justify-center bg-slate-900 min-h-[350px] relative"
+              onWheel={(e) => {
+                e.preventDefault();
+                if (e.deltaY < 0) {
+                  setSelectedImageZoom((prev) => Math.min(4, prev + 0.2));
+                } else {
+                  setSelectedImageZoom((prev) => Math.max(0.5, prev - 0.2));
+                }
+              }}
+            >
               <img
                 src={selectedImage}
                 alt="System Prescription Scan Viewer"
-                className="max-h-[60vh] object-contain rounded-lg shadow-md border border-slate-800"
+                className="max-h-[65vh] object-contain rounded-lg shadow-md border border-slate-800 transition-transform duration-150 ease-out cursor-grab active:cursor-grabbing"
+                style={{ transform: `scale(${selectedImageZoom})` }}
                 referrerPolicy="no-referrer"
               />
             </div>
-            <div className="p-3 bg-slate-50 border-t border-slate-200 text-center text-[10px] text-slate-500">
-              Sourced digitally under RxNexus Patient Privacy framework
+            <div className="p-2.5 bg-slate-50 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-500">
+              <span>Sourced digitally under RxNexus Patient Privacy framework</span>
+              <span className="font-mono text-slate-400">{language === 'TH' ? 'ใช้ลูกกลิ้งเมาส์หรือปุ่มเพื่อย่อ-ขยาย' : 'Use mouse wheel or buttons to zoom'}</span>
             </div>
           </div>
         </div>
@@ -739,6 +822,19 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
             <div className="space-y-3 font-sans">
               <div>
                 <label className="block text-[10px] font-bold text-slate-705 uppercase tracking-wide mb-1">
+                  {language === 'TH' ? 'ปรับเปลี่ยนวันที่บริหารให้ยา (เลือกวันที่ใหม่เพื่ออัปเดตปฏิทิน) *' : 'Reschedule Date of Use (select new date to update calendar) *'}
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={rolloverDate}
+                  onChange={(e) => setRolloverDate(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 p-2 rounded text-xs focus:ring-2 focus:ring-emerald-500/20 focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-705 uppercase tracking-wide mb-1">
                   {language === 'TH' ? 'ระบุเหตุผลในการคืนสถานะ (Unhold) *' : 'Unhold Reason *'}
                 </label>
                 <input
@@ -776,9 +872,10 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
               </button>
               <button
                 type="button"
-                disabled={!holdReason.trim() || !nurseName.trim()}
+                disabled={!rolloverDate || !holdReason.trim() || !nurseName.trim()}
                 onClick={() => {
                   updateBooking(unholdingBooking.id, {
+                    dateOfUse: rolloverDate,
                     holdStatus: {
                       isHeld: false,
                       reason: unholdingBooking.holdStatus?.reason || '',
@@ -889,6 +986,282 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
                 className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded text-xs font-semibold cursor-pointer transition-colors"
               >
                 {language === 'TH' ? 'ยืนยันเลื่อนนัดยา' : 'Confirm Rollover'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Side-by-Side Pharmacist Verification Modal */}
+      {activeVerifyingBooking && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-5xl w-full flex flex-col md:flex-row overflow-hidden max-h-[90vh]">
+            
+            {/* Left Side: Prescription Scan (Picture Left) */}
+            <div className="flex-1 bg-slate-50 p-5 flex flex-col justify-between border-r border-slate-100 overflow-y-auto max-h-[45vh] md:max-h-none">
+              <div className="mb-3 flex justify-between items-center">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                  {language === 'TH' ? 'รูปภาพใบสั่งยาต้นฉบับ / PRESCRIPTION IMAGE' : 'PRESCRIPTION DOCUMENT SCAN'}
+                </span>
+                
+                {activeVerifyingBooking.prescriptionImage && (
+                  <div className="flex items-center gap-1.5">
+                    {/* Zoom Bar */}
+                    <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-1 text-xs shadow-3xs">
+                      <button
+                        type="button"
+                        onClick={() => setVerifyImageZoom((prev) => Math.max(0.5, prev - 0.25))}
+                        className="p-1 hover:bg-slate-100 rounded text-slate-600 transition-colors cursor-pointer"
+                        title="Zoom Out (-)"
+                      >
+                        <ZoomOut className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="font-mono font-bold text-blue-600 min-w-[38px] text-center text-[10px]">
+                        {Math.round(verifyImageZoom * 100)}%
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setVerifyImageZoom((prev) => Math.min(4, prev + 0.25))}
+                        className="p-1 hover:bg-slate-100 rounded text-slate-600 transition-colors cursor-pointer"
+                        title="Zoom In (+)"
+                      >
+                        <ZoomIn className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setVerifyImageZoom(1)}
+                        className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                        title="Reset (100%)"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                      </button>
+                    </div>
+
+                    <span className="px-2 py-0.5 rounded text-[9px] bg-blue-50 text-blue-700 font-mono font-bold">
+                      {activeVerifyingBooking.id}
+                    </span>
+                  </div>
+                )}
+              </div>
+              
+              <div 
+                className="flex-1 flex items-center justify-center bg-white rounded-xl border border-slate-200/60 p-4 shadow-3xs min-h-[250px] overflow-auto relative"
+                onWheel={(e) => {
+                  if (activeVerifyingBooking.prescriptionImage) {
+                    e.preventDefault();
+                    if (e.deltaY < 0) {
+                      setVerifyImageZoom((prev) => Math.min(4, prev + 0.2));
+                    } else {
+                      setVerifyImageZoom((prev) => Math.max(0.5, prev - 0.2));
+                    }
+                  }
+                }}
+              >
+                {activeVerifyingBooking.prescriptionImage ? (
+                  <img
+                    src={activeVerifyingBooking.prescriptionImage}
+                    alt="Prescription document"
+                    className="max-h-[380px] w-auto object-contain rounded-lg transition-transform duration-150 ease-out cursor-grab active:cursor-grabbing"
+                    style={{ transform: `scale(${verifyImageZoom})` }}
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="text-center p-8 text-slate-400 space-y-2">
+                    <span className="text-4xl block">📋</span>
+                    <p className="text-xs font-bold text-slate-500">
+                      {language === 'TH' ? 'ไม่มีการอัปโหลดไฟล์สแกนใบสั่งยา' : 'No prescription scan uploaded'}
+                    </p>
+                    <p className="text-[10px] text-slate-400">
+                      {language === 'TH' ? 'ใช้ใบจองยาแบบดั้งเดิมในการประเมินความปลอดภัยคนไข้' : 'Verify order using clinical profile ledger instead'}
+                    </p>
+                  </div>
+                )}
+              </div>
+              <div className="mt-3 text-center text-[10px] text-slate-400 font-mono">
+                RxNexus Zero-Error Verification Engine
+              </div>
+            </div>
+
+            {/* Right Side: Details and Setup Inputs (Details Right) */}
+            <div className="flex-1 p-5 md:p-6 flex flex-col justify-between overflow-y-auto max-h-[45vh] md:max-h-none space-y-4">
+              <div className="space-y-4">
+                <div className="border-b border-slate-150 pb-3">
+                  <h3 className="font-extrabold text-sm text-blue-900 uppercase flex items-center gap-2">
+                    <span>🔬</span> {language === 'TH' ? 'ประเมินและตรวจสอบใบสั่งยา (Verify Rx)' : 'Clinical Prescription Verification'}
+                  </h3>
+                  <p className="text-[10.5px] text-slate-500 mt-1">
+                    {language === 'TH' ? 'ทบทวนคำสั่งจองยา ตรวจสอบปริมาณ ขนาด และความถูกต้องของเวชภัณฑ์ยา' : 'Review reservation quantities, clinical targets and approve drug preparation.'}
+                  </p>
+                </div>
+
+                {/* Patient Profile */}
+                <div className="bg-slate-50/75 rounded-xl p-3 border border-slate-100 grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-[9px] uppercase font-bold text-slate-400 block">{language === 'TH' ? 'ข้อมูลคนไข้' : 'Patient Name'}</span>
+                    <span className="font-bold text-slate-800 text-[13px]">{activeVerifyingBooking.patientName}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] uppercase font-bold text-slate-400 block">{language === 'TH' ? 'หมายเลข HN' : 'Hospital Number (HN)'}</span>
+                    <span className="font-mono font-bold text-blue-700 text-[13px]">{activeVerifyingBooking.hn}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] uppercase font-bold text-slate-400 block">{language === 'TH' ? 'วันที่สั่งใช้ยาจริง' : 'Date of Use'}</span>
+                    <span className="font-semibold text-slate-700">{formatDateToDMY(activeVerifyingBooking.dateOfUse)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] uppercase font-bold text-slate-400 block">{language === 'TH' ? 'แผนกที่สั่งใช้ยา' : 'Department'}</span>
+                    <span className="font-semibold text-slate-700">{activeVerifyingBooking.department}</span>
+                  </div>
+                  {activeVerifyingBooking.regimen && (
+                    <div className="col-span-2 border-t border-slate-200/50 pt-2 mt-1">
+                      <span className="text-[9px] uppercase font-bold text-slate-400 block">{language === 'TH' ? 'สูตรยาจองการรักษา (Regimen)' : 'Treatment Regimen'}</span>
+                      <span className="font-semibold text-purple-700 font-mono text-[11px]">{activeVerifyingBooking.regimen}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Medications Table */}
+                <div className="space-y-1.5">
+                  <span className="text-[10px] uppercase font-extrabold tracking-wide text-slate-400 block">
+                    {language === 'TH' ? 'รายการเวชภัณฑ์ยาที่สั่งสำรอง' : 'ORDERED MEDICINES'}
+                  </span>
+                  <div className="border border-slate-200/60 rounded-xl overflow-hidden shadow-3xs">
+                    <table className="w-full text-left text-[11px] border-collapse bg-white">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-150 text-[9.5px] uppercase font-extrabold text-slate-500">
+                          <th className="p-2.5">Medication Name</th>
+                          <th className="p-2.5 text-center">Qty</th>
+                          <th className="p-2.5 text-right">Price</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
+                        {activeVerifyingBooking.medications.map((m, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50/55">
+                            <td className="p-2.5 font-bold text-slate-800">{m.drugName}</td>
+                            <td className="p-2.5 text-center font-bold text-blue-600">{m.quantity}</td>
+                            <td className="p-2.5 text-right font-semibold">฿{m.totalPrice.toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Location & Reviewer input */}
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <div>
+                    <label className="block text-[10px] uppercase font-extrabold tracking-wide text-slate-400 mb-1">
+                      {language === 'TH' ? 'ห้องยาจ่ายยาจ่ายจริง *' : 'Pharmacy Location *'}
+                    </label>
+                    <select
+                      required
+                      value={verifyingLocation}
+                      onChange={(e) => setVerifyingLocation(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 p-2 rounded-lg text-xs font-semibold focus:outline-hidden focus:border-blue-500 focus:bg-white"
+                    >
+                      <option value="">-- Choose location --</option>
+                      <option value="Phar IV">Phar IV</option>
+                      <option value="Phar A1">Phar A1</option>
+                      <option value="Phar E3">Phar E3</option>
+                      <option value="Phar E6">Phar E6</option>
+                      <option value="Phar D">Phar D</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] uppercase font-extrabold tracking-wide text-slate-400 mb-1">
+                      {language === 'TH' ? 'เภสัชกรผู้ตรวจสอบทบทวน *' : 'Pharmacist Reviewer *'}
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={verifyingPharmacistName}
+                      onChange={(e) => setVerifyingPharmacistName(e.target.value)}
+                      placeholder="e.g. Sarah Connor (PharmD)"
+                      className="w-full bg-slate-50 border border-slate-200 p-2 rounded-lg text-xs font-semibold focus:outline-hidden focus:border-blue-500 focus:bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 justify-end pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setActiveVerifyingBooking(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold cursor-pointer transition-colors"
+                >
+                  {language === 'TH' ? 'ปิดหน้าต่าง' : 'Close'}
+                </button>
+                <button
+                  type="button"
+                  disabled={loading || !verifyingLocation || !verifyingPharmacistName.trim()}
+                  onClick={async () => {
+                    const success = await verifyPharmacist(activeVerifyingBooking.id, verifyingLocation, verifyingPharmacistName);
+                    if (success) {
+                      setActiveVerifyingBooking(null);
+                    }
+                  }}
+                  className="px-4.5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors flex items-center gap-1.5 shadow-sm hover:shadow-md active:scale-95 duration-150"
+                >
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  <span>{language === 'TH' ? 'ทบทวนสำเร็จ (Verify complete)' : 'Verify Complete'}</span>
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Custom Delete Confirmation Modal */}
+      {deletingBookingId && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 transition-all animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-2xl max-w-md w-full flex flex-col overflow-hidden animate-scale-up">
+            <div className="p-5 bg-red-50 border-b border-red-100/60 flex items-center gap-3">
+              <div className="p-2 bg-red-100 text-red-600 rounded-lg">
+                <Trash className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-red-950 uppercase tracking-tight">
+                  {language === 'TH' ? 'ยืนยันการลบรายการจองยา' : 'Confirm Clinical Delete'}
+                </h3>
+                <p className="text-[10px] text-red-600 font-medium mt-0.5">
+                  ID: {deletingBookingId}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-3 text-xs leading-relaxed text-slate-600">
+              <p className="font-semibold text-rose-700 text-xs">
+                {language === 'TH'
+                  ? '⚠️ คำเตือน: การดำเนินการนี้ไม่สามารถย้อนกลับได้!'
+                  : '⚠️ Warning: This action is permanent and cannot be undone!'}
+              </p>
+              <p>
+                {language === 'TH'
+                  ? 'การจองยาและข้อมูลผู้ป่วยของรายการนี้จะถูกลบออกจากฐานข้อมูล RxNexus ถาวรทันที ประวัติการอนุมัติและจัดเตรียมทั้งหมดจะสูญหาย'
+                  : 'This reservation and all clinical associated data will be permanently purged from RxNexus servers. Verified histories and log references will remain archived.'}
+              </p>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setDeletingBookingId(null)}
+                className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-bold uppercase transition-all cursor-pointer"
+              >
+                {language === 'TH' ? 'ยกเลิก' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await deleteBooking(deletingBookingId);
+                  setDeletingBookingId(null);
+                }}
+                className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold uppercase transition-all shadow-md hover:shadow-lg active:scale-95 duration-150 cursor-pointer"
+              >
+                {language === 'TH' ? 'ยืนยันลบข้อมูลถาวร' : 'Confirm Delete'}
               </button>
             </div>
           </div>

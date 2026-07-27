@@ -3,6 +3,7 @@ import { User, Drug, Booking, SystemLog, OwingMedication, formatDateToDMY } from
 import { db, auth, OperationType, handleFirestoreError } from '../lib/firebase';
 import { collection, doc, setDoc, getDocs, onSnapshot, query, orderBy, deleteDoc, updateDoc } from 'firebase/firestore';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { compressImage } from '../utils/imageCompressor';
 
 interface Alert {
   id: string;
@@ -54,6 +55,7 @@ interface AppContextType {
   toggleOwingResolved: (owingId: string, resolved: boolean) => Promise<void>;
   toggleMedicineOwing: (booking: Booking, targetMed: any, makeOwing: boolean) => Promise<void>;
   clearAlerts: () => void;
+  spawnAlert: (message: string, type?: 'info' | 'success', bookingId?: string, hn?: string) => void;
   selectedPharmacyLocation: string;
   setSelectedPharmacyLocation: (loc: string) => void;
   soundEnabled: boolean;
@@ -80,7 +82,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [owingMeds, setOwingMeds] = useState<OwingMedication[]>([]);
   const [loading, setLoading] = useState(false);
-  const [language, setLanguage] = useState<'TH' | 'EN'>('EN');
+  const [language, setLanguageState] = useState<'TH' | 'EN'>(() => {
+    const saved = localStorage.getItem('rxnexus_lang');
+    return (saved as 'TH' | 'EN') || 'TH';
+  });
+  const setLanguage = (lang: 'TH' | 'EN') => {
+    setLanguageState(lang);
+    localStorage.setItem('rxnexus_lang', lang);
+  };
   const [selectedPharmacyLocation, setSelectedPharmacyLocation] = useState<string>('All');
   const prevVerificationStatusRef = useRef<Record<string, string>>({});
   const prevClerkStatusRef = useRef<Record<string, string>>({});
@@ -179,7 +188,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               const isClerk = currentUser?.role === 'Pharmacy Stock Clerk' || currentUser?.roles?.includes('Pharmacy Stock Clerk');
               const isAdmin = currentUser?.role === 'Admin' || currentUser?.roles?.includes('Admin');
               
-              const langPref = localStorage.getItem('rxnexus_lang') || 'EN';
+              const langPref = localStorage.getItem('rxnexus_lang') || 'TH';
               const isThai = langPref === 'TH';
 
               if (isPharmacist || isAdmin) {
@@ -213,7 +222,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               const isAdmin = currentUser?.role === 'Admin' || currentUser?.roles?.includes('Admin');
               
               if (isPharmacist || isAssistant || isAdmin) {
-                const langPref = localStorage.getItem('rxnexus_lang') || 'EN';
+                const langPref = localStorage.getItem('rxnexus_lang') || 'TH';
                 const isThai = langPref === 'TH';
                 const alertMsg = isThai
                   ? `🔔 แพทย์/พยาบาล มีการจองยาใหม่เข้ามา: คนไข้ HN: ${b.hn} (${b.patientName}) สำหรับวันที่ ${formatDateToDMY(b.dateOfUse)} รอกดตรวจสอบรายการ`
@@ -232,7 +241,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                 const isClerk = currentUser?.role === 'Pharmacy Stock Clerk' || currentUser?.roles?.includes('Pharmacy Stock Clerk');
                 const isAdmin = currentUser?.role === 'Admin' || currentUser?.roles?.includes('Admin');
                 if (isClerk || isAdmin) {
-                  const langPref = localStorage.getItem('rxnexus_lang') || 'EN';
+                  const langPref = localStorage.getItem('rxnexus_lang') || 'TH';
                   const isThai = langPref === 'TH';
                   const alertMsg = isThai
                     ? `✅ ห้องยาตรวจสอบรายการเรียบร้อย: มีการตรวจสอบรายการยาจองของคนไข้ HN: ${b.hn} (${b.patientName}) เรียบร้อยแล้ว ให้ดำเนินการต่อได้`
@@ -253,7 +262,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                 const isDoctor = currentUser?.role === 'Doctor' || currentUser?.roles?.includes('Doctor');
                 const isAdmin = currentUser?.role === 'Admin' || currentUser?.roles?.includes('Admin');
                 if (isNurse || isDoctor || isAdmin) {
-                  const langPref = localStorage.getItem('rxnexus_lang') || 'EN';
+                  const langPref = localStorage.getItem('rxnexus_lang') || 'TH';
                   const isThai = langPref === 'TH';
                   const alertMsg = isThai
                     ? `📦 คลังยาเตรียมเวชภัณฑ์เสร็จสิ้น: ของคนไข้ HN: ${b.hn} (${b.patientName}) พร้อมนำไปใช้งานแล้ว`
@@ -278,7 +287,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               const isClerk = currentUser?.role === 'Pharmacy Stock Clerk' || currentUser?.roles?.includes('Pharmacy Stock Clerk');
               const isAdmin = currentUser?.role === 'Admin' || currentUser?.roles?.includes('Admin');
               if (isClerk || isAdmin) {
-                const langPref = localStorage.getItem('rxnexus_lang') || 'EN';
+                const langPref = localStorage.getItem('rxnexus_lang') || 'TH';
                 const isThai = langPref === 'TH';
                 const alertMsg = isThai
                   ? `✅ ห้องยาตรวจสอบรายการเรียบร้อย: มีการตรวจสอบรายการยาจองของคนไข้ HN: ${b.hn} (${b.patientName}) เรียบร้อยแล้ว ให้ดำเนินการต่อได้`
@@ -294,7 +303,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               const isDoctor = currentUser?.role === 'Doctor' || currentUser?.roles?.includes('Doctor');
               const isAdmin = currentUser?.role === 'Admin' || currentUser?.roles?.includes('Admin');
               if (isNurse || isDoctor || isAdmin) {
-                const langPref = localStorage.getItem('rxnexus_lang') || 'EN';
+                const langPref = localStorage.getItem('rxnexus_lang') || 'TH';
                 const isThai = langPref === 'TH';
                 const alertMsg = isThai
                   ? `📦 คลังยาเตรียมเวชภัณฑ์เสร็จสิ้น: ของคนไข้ HN: ${b.hn} (${b.patientName}) พร้อมนำไปใช้งานแล้ว`
@@ -340,7 +349,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             const createdSecs = new Date(om.createdAt).getTime();
             const diffMs = Math.abs(Date.now() - createdSecs);
             if (diffMs < 60000) {
-              const langPref = localStorage.getItem('rxnexus_lang') || 'EN';
+              const langPref = localStorage.getItem('rxnexus_lang') || 'TH';
               const isThai = langPref === 'TH';
               const alertMsg = isThai
                 ? `⚠️ รายการค้างยา/ค้างรับเวชภัณฑ์: คนไข้ ${om.patientName} (HN: ${om.hn}) ยังได้รับยาไม่ครบ!`
@@ -522,6 +531,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         bookingId = `RXN-${todayStr}-${String(nextSeq).padStart(3, '0')}`;
       }
 
+      let safeImage = b.prescriptionImage || '';
+      if (safeImage && safeImage.length > 400000) {
+        try {
+          safeImage = await compressImage(safeImage, 1000, 1000, 0.70);
+        } catch (err) {
+          console.error('Failed to compress image in createBooking:', err);
+        }
+      }
+
       const newBooking: Booking = {
         id: bookingId,
         bookingDate: b.bookingDate || today,
@@ -532,7 +550,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         mode: b.mode || 'General',
         medications: b.medications || [],
         totalAmount: Number(b.totalAmount) || 0,
-        prescriptionImage: b.prescriptionImage || '',
+        prescriptionImage: safeImage,
         regimen: b.regimen || '',
         note: b.note || '',
         staff: {
@@ -570,7 +588,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       };
       await setDoc(doc(db, 'logs', logId), newLog);
 
-      spawnAlert(`Successfully booked medication order: ${bookingId} for ${newBooking.patientName}!`, 'success');
+      spawnAlert(
+        language === 'TH'
+          ? `บันทึกรายการจองยาสำเร็จ: เลขที่ใบจอง ${bookingId} สำหรับคนไข้ ${newBooking.patientName}!`
+          : `Successfully booked medication order: ${bookingId} for ${newBooking.patientName}!`,
+        'success'
+      );
       return { success: true, booking: newBooking };
     } catch (e: any) {
       handleFirestoreError(e, OperationType.CREATE, 'bookings');
@@ -584,6 +607,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       const docRef = doc(db, 'bookings', id);
+      const existing = bookings.find((x) => x.id === id);
       const updateData: any = {};
       if (b.hn) updateData.hn = b.hn;
       if (b.patientName) updateData.patientName = b.patientName;
@@ -596,22 +620,78 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       if (b.note !== undefined) updateData.note = b.note;
       if (b.medications) updateData.medications = b.medications;
       if (b.totalAmount !== undefined) updateData.totalAmount = b.totalAmount;
-      if (b.prescriptionImage !== undefined) updateData.prescriptionImage = b.prescriptionImage;
+      if (b.prescriptionImage !== undefined) {
+        let safeImage = b.prescriptionImage;
+        if (safeImage && safeImage.length > 400000) {
+          try {
+            safeImage = await compressImage(safeImage, 1000, 1000, 0.70);
+          } catch (err) {
+            console.error('Failed to compress image in updateBooking:', err);
+          }
+        }
+        updateData.prescriptionImage = safeImage;
+      }
       if (b.medicineReceived !== undefined) updateData.medicineReceived = b.medicineReceived;
       if (b.pdfPrinted !== undefined) updateData.pdfPrinted = b.pdfPrinted;
       if (b.stickerPrinted !== undefined) updateData.stickerPrinted = b.stickerPrinted;
-      if (b.holdStatus !== undefined) updateData.holdStatus = b.holdStatus;
-      if (b.rolloverStatus !== undefined) updateData.rolloverStatus = b.rolloverStatus;
-      if (b.pharmacistVerification !== undefined) updateData.pharmacistVerification = b.pharmacistVerification;
-      if (b.clerkVerification !== undefined) updateData.clerkVerification = b.clerkVerification;
-      if (b.staff) {
-        updateData.staff = {
-          doctor: b.staff.doctor || '',
-          nurse: b.staff.nurse || '',
-          pharmacist: b.staff.pharmacist || '',
-          creatorId: currentUser?.id || 'system',
-          creatorName: currentUser?.name || 'Staff Member'
+      
+      if (b.holdStatus !== undefined) {
+        const currentHold = existing?.holdStatus || {};
+        updateData.holdStatus = {
+          isHeld: b.holdStatus.isHeld !== undefined ? b.holdStatus.isHeld : (currentHold.isHeld || false),
+          reason: b.holdStatus.reason !== undefined ? b.holdStatus.reason : (currentHold.reason || ''),
+          notifyingNurse: b.holdStatus.notifyingNurse !== undefined ? b.holdStatus.notifyingNurse : (currentHold.notifyingNurse || (currentHold as any).notifiedNurse || ''),
+          heldAt: b.holdStatus.heldAt !== undefined ? b.holdStatus.heldAt : (currentHold.heldAt || (currentHold as any).timestamp || ''),
+          unholdReason: b.holdStatus.unholdReason !== undefined ? b.holdStatus.unholdReason : (currentHold.unholdReason || ''),
+          unholdNurse: b.holdStatus.unholdNurse !== undefined ? b.holdStatus.unholdNurse : (currentHold.unholdNurse || ''),
+          unheldAt: b.holdStatus.unheldAt !== undefined ? b.holdStatus.unheldAt : (currentHold.unheldAt || '')
         };
+      } else {
+        // preserve existing if not explicitly passed
+        if (existing?.holdStatus) updateData.holdStatus = existing.holdStatus;
+      }
+
+      if (b.rolloverStatus !== undefined) {
+        updateData.rolloverStatus = b.rolloverStatus;
+      } else {
+        if (existing?.rolloverStatus) updateData.rolloverStatus = existing.rolloverStatus;
+      }
+
+      if (b.pharmacistVerification !== undefined) {
+        const currentPV = existing?.pharmacistVerification || {};
+        updateData.pharmacistVerification = {
+          status: b.pharmacistVerification.status !== undefined ? b.pharmacistVerification.status : (currentPV.status || 'Pending'),
+          verifiedBy: b.pharmacistVerification.verifiedBy !== undefined ? b.pharmacistVerification.verifiedBy : (currentPV.verifiedBy || ''),
+          verifiedAt: b.pharmacistVerification.verifiedAt !== undefined ? b.pharmacistVerification.verifiedAt : (currentPV.verifiedAt || '')
+        };
+      } else {
+        if (existing?.pharmacistVerification) updateData.pharmacistVerification = existing.pharmacistVerification;
+      }
+
+      if (b.clerkVerification !== undefined) {
+        const currentCV = existing?.clerkVerification || {};
+        updateData.clerkVerification = {
+          status: b.clerkVerification.status !== undefined ? b.clerkVerification.status : (currentCV.status || 'Pending'),
+          verifiedBy: b.clerkVerification.verifiedBy !== undefined ? b.clerkVerification.verifiedBy : (currentCV.verifiedBy || ''),
+          verifiedAt: b.clerkVerification.verifiedAt !== undefined ? b.clerkVerification.verifiedAt : (currentCV.verifiedAt || ''),
+          orderedBy: b.clerkVerification.orderedBy !== undefined ? b.clerkVerification.orderedBy : (currentCV.orderedBy || ''),
+          orderedAt: b.clerkVerification.orderedAt !== undefined ? b.clerkVerification.orderedAt : (currentCV.orderedAt || '')
+        };
+      } else {
+        if (existing?.clerkVerification) updateData.clerkVerification = existing.clerkVerification;
+      }
+
+      if (b.staff) {
+        const currentStaff = existing?.staff || {};
+        updateData.staff = {
+          doctor: b.staff.doctor !== undefined ? b.staff.doctor : (currentStaff.doctor || ''),
+          nurse: b.staff.nurse !== undefined ? b.staff.nurse : (currentStaff.nurse || ''),
+          pharmacist: b.staff.pharmacist !== undefined ? b.staff.pharmacist : (currentStaff.pharmacist || ''),
+          creatorId: b.staff.creatorId !== undefined ? b.staff.creatorId : (currentStaff.creatorId || currentUser?.id || 'system'),
+          creatorName: b.staff.creatorName !== undefined ? b.staff.creatorName : (currentStaff.creatorName || currentUser?.name || 'Staff Member')
+        };
+      } else {
+        if (existing?.staff) updateData.staff = existing.staff;
       }
 
       await updateDoc(docRef, updateData);
@@ -629,7 +709,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       };
       await setDoc(doc(db, 'logs', logId), newLog);
 
-      spawnAlert(`Booking order ${id} updated systematically.`, 'success');
+      spawnAlert(
+        language === 'TH'
+          ? `อัปเดตข้อมูลใบจอง ${id} เรียบร้อยแล้ว`
+          : `Booking order ${id} updated systematically.`,
+        'success'
+      );
       return { success: true };
     } catch (e: any) {
       handleFirestoreError(e, OperationType.UPDATE, `bookings/${id}`);
@@ -656,7 +741,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       };
       await setDoc(doc(db, 'logs', logId), newLog);
 
-      spawnAlert(`Medication booking record ${id} was permanently removed.`, 'info');
+      spawnAlert(
+        language === 'TH'
+          ? `ลบประวัติการจองยาของหมายเลข ${id} ออกจากระบบถาวรแล้ว`
+          : `Medication booking record ${id} was permanently removed.`,
+        'info'
+      );
       return { success: true };
     } catch (e: any) {
       handleFirestoreError(e, OperationType.DELETE, `bookings/${id}`);
@@ -666,17 +756,37 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const verifyPharmacist = async (id: string) => {
+  const verifyPharmacist = async (id: string, phLocation?: string, phName?: string) => {
     setLoading(true);
     try {
       const docRef = doc(db, 'bookings', id);
-      await updateDoc(docRef, {
+      const booking = bookings.find((b) => b.id === id);
+      
+      const updateData: any = {
         pharmacistVerification: {
           status: 'Verified',
-          verifiedBy: currentUser?.name || 'Pharmacist Coordinator',
+          verifiedBy: phName || currentUser?.name || 'Pharmacist Coordinator',
           verifiedAt: new Date().toISOString()
         }
-      });
+      };
+
+      if (phLocation) {
+        updateData.pharmacyLocation = phLocation;
+      }
+
+      if (phName) {
+        // Dot notation or partial update for nested object
+        if (booking?.staff) {
+          updateData.staff = {
+            ...booking.staff,
+            pharmacist: phName
+          };
+        } else {
+          updateData['staff.pharmacist'] = phName;
+        }
+      }
+
+      await updateDoc(docRef, updateData);
 
       const logId = 'log-' + Date.now();
       const newLog: SystemLog = {
@@ -690,7 +800,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       };
       await setDoc(doc(db, 'logs', logId), newLog);
 
-      spawnAlert(`Pharmacist Verified order ${id} successfully!`, 'success');
+      spawnAlert(
+        language === 'TH'
+          ? `ทบทวนและตรวจสอบใบสั่งยาเลขที่ ${id} สำเร็จ!`
+          : `Pharmacist Verified order ${id} successfully!`,
+        'success'
+      );
       return true;
     } catch (e: any) {
       handleFirestoreError(e, OperationType.UPDATE, `bookings/${id}`);
@@ -729,14 +844,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         nextClerkVerification.orderedBy = currentUser?.name || 'Pharmacy Stock Clerk';
         nextClerkVerification.orderedAt = new Date().toISOString();
         actionDetails = `Received order and initiated vendor purchase request for booking ${id}.`;
-        successMsg = `Received order for ${id}! Initiated purchase with vendor.`;
+        successMsg = language === 'TH'
+          ? `รับคำสั่งจองยา ${id} และเริ่มทำการจัดซื้อเรียบร้อยแล้ว!`
+          : `Received order for ${id}! Initiated purchase with vendor.`;
         actionName = 'Clerk Order Initiated';
       } else if (currentClerkStatus === 'Accepted') {
         nextClerkVerification.status = 'Ready-to-use';
         nextClerkVerification.verifiedBy = currentUser?.name || 'Pharmacy Stock Clerk';
         nextClerkVerification.verifiedAt = new Date().toISOString();
         actionDetails = `Confirmed supply arrived and marked reservation ${id} as ready-to-use.`;
-        successMsg = `Confirmed arrival for ${id}! Ready to use.`;
+        successMsg = language === 'TH'
+          ? `ยืนยันยาพร้อมใช้งานสำหรับการจอง ${id} เรียบร้อย!`
+          : `Confirmed arrival for ${id}! Ready to use.`;
         actionName = 'Stock Delivered';
       } else {
         return true;
@@ -800,7 +919,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       };
       await setDoc(doc(db, 'logs', logId), newLog);
 
-      spawnAlert(`Added medication catalog line: ${newDrug.name}.`, 'success');
+      spawnAlert(
+        language === 'TH'
+          ? `เพิ่มเวชภัณฑ์ยาใหม่เข้าคลังสำเร็จ: ${newDrug.name}`
+          : `Added medication catalog line: ${newDrug.name}.`,
+        'success'
+      );
       return { success: true };
     } catch (e: any) {
       handleFirestoreError(e, OperationType.CREATE, 'drugs');
@@ -841,7 +965,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       };
       await setDoc(doc(db, 'logs', logId), newLog);
 
-      spawnAlert(`Updated drug properties successfully.`, 'success');
+      spawnAlert(
+        language === 'TH'
+          ? `อัปเดตข้อมูลเวชภัณฑ์ยาเรียบร้อยแล้ว`
+          : `Updated drug properties successfully.`,
+        'success'
+      );
       return { success: true };
     } catch (e: any) {
       handleFirestoreError(e, OperationType.UPDATE, `drugs/${id}`);
@@ -868,7 +997,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       };
       await setDoc(doc(db, 'logs', logId), newLog);
 
-      spawnAlert('Drug item was removed from system indexing ledger.', 'info');
+      spawnAlert(
+        language === 'TH'
+          ? `ลบเวชภัณฑ์ยาออกจากระบบคลังข้อมูลเรียบร้อยแล้ว`
+          : 'Drug item was removed from system indexing ledger.',
+        'info'
+      );
       return { success: true };
     } catch (e: any) {
       handleFirestoreError(e, OperationType.DELETE, `drugs/${id}`);
@@ -901,7 +1035,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       };
       await setDoc(doc(db, 'logs', logId), newLog);
 
-      spawnAlert(`Submitted drug deletion request. Awaiting Admin approval.`, 'info');
+      spawnAlert(
+        language === 'TH'
+          ? `ยื่นส่งคำร้องขอลบเวชภัณฑ์สำเร็จ รอผู้ดูแลอนุมัติ`
+          : `Submitted drug deletion request. Awaiting Admin approval.`,
+        'info'
+      );
       return { success: true };
     } catch (e: any) {
       handleFirestoreError(e, OperationType.UPDATE, `drugs/${id}`);
@@ -934,7 +1073,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       };
       await setDoc(doc(db, 'logs', logId), newLog);
 
-      spawnAlert(`Rejected drug deletion request. Item is retained.`, 'success');
+      spawnAlert(
+        language === 'TH'
+          ? `ปฏิเสธคำขอลบเวชภัณฑ์ เก็บรายการยาไว้ในระบบตามเดิม`
+          : `Rejected drug deletion request. Item is retained.`,
+        'success'
+      );
       return { success: true };
     } catch (e: any) {
       handleFirestoreError(e, OperationType.UPDATE, `drugs/${id}`);
@@ -979,7 +1123,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       };
       await setDoc(doc(db, 'logs', logId), newLog);
 
-      spawnAlert(`Submitted drug modification request. Awaiting Admin approval.`, 'info');
+      spawnAlert(
+        language === 'TH'
+          ? `ยื่นส่งคำร้องขอแก้ไขข้อมูลเวชภัณฑ์สำเร็จ รอผู้ดูแลอนุมัติ`
+          : `Submitted drug modification request. Awaiting Admin approval.`,
+        'info'
+      );
       return { success: true };
     } catch (e: any) {
       handleFirestoreError(e, OperationType.UPDATE, `drugs/${id}`);
@@ -1027,7 +1176,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       };
       await setDoc(doc(db, 'logs', logId), newLog);
 
-      spawnAlert(`Approved drug modification. New parameters applied.`, 'success');
+      spawnAlert(
+        language === 'TH'
+          ? `อนุมัติคำขอแก้ไขข้อมูลเวชภัณฑ์และปรับใช้ข้อมูลใหม่เรียบร้อยแล้ว!`
+          : `Approved drug modification. New parameters applied.`,
+        'success'
+      );
       return { success: true };
     } catch (e: any) {
       handleFirestoreError(e, OperationType.UPDATE, `drugs/${id}`);
@@ -1060,7 +1214,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       };
       await setDoc(doc(db, 'logs', logId), newLog);
 
-      spawnAlert(`Rejected drug edit request. Original parameters preserved.`, 'success');
+      spawnAlert(
+        language === 'TH'
+          ? `ปฏิเสธคำขอแก้ไขข้อมูลเวชภัณฑ์ เก็บรักษาข้อมูลเดิมไว้`
+          : `Rejected drug edit request. Original parameters preserved.`,
+        'success'
+      );
       return { success: true };
     } catch (e: any) {
       handleFirestoreError(e, OperationType.UPDATE, `drugs/${id}`);
@@ -1461,6 +1620,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         toggleOwingResolved,
         toggleMedicineOwing,
         clearAlerts,
+        spawnAlert,
         selectedPharmacyLocation,
         setSelectedPharmacyLocation,
         soundEnabled,

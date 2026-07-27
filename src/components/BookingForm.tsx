@@ -1,9 +1,97 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { i18n } from '../lib/i18n';
 import { BookingMedication, Drug } from '../types';
-import { Plus, Trash, Image as ImageIcon, CheckCircle, Search, HelpCircle, X, Printer, Check, Copy, ChevronDown } from 'lucide-react';
+import { Plus, Trash, Image as ImageIcon, CheckCircle, Search, HelpCircle, X, Printer, Check, Copy, ChevronDown, ZoomIn, ZoomOut, RotateCcw, Maximize2, Eye } from 'lucide-react';
 import { printElementByNewWindow } from '../utils/print';
+import { compressImage } from '../utils/imageCompressor';
+
+const PREDEFINED_DEPARTMENTS = [
+  {
+    value: 'Oncology',
+    nameEN: 'Oncology',
+    nameTH: 'Oncology (แผนกมะเร็งวิทยา)',
+    relatedKeywords: ['oncology', 'onco', 'cancer', 'chemo', 'เคมีบำบัด', 'มะเร็ง', 'คีโม', 'เนื้องอก', 'รังสี', 'onco']
+  },
+  {
+    value: 'Internal Medicine',
+    nameEN: 'Internal Medicine',
+    nameTH: 'Internal Medicine (แผนกอายุรกรรม)',
+    relatedKeywords: ['medicine', 'med', 'internal', 'อายุรกรรม', 'อายุรแพทย์', 'โรคทั่วไป', 'ความดัน', 'เบาหวาน', 'เมด']
+  },
+  {
+    value: 'Pediatrics',
+    nameEN: 'Pediatrics',
+    nameTH: 'Pediatrics (แผนกกุมารเวชกรรม)',
+    relatedKeywords: ['pediatrics', 'peds', 'child', 'ped', 'กุมาร', 'เด็ก', 'ทารก', 'วัคซีนเด็ก', 'พีท']
+  },
+  {
+    value: 'Surgery',
+    nameEN: 'Surgery',
+    nameTH: 'Surgery (แผนกศัลยกรรม)',
+    relatedKeywords: ['surgery', 'surgeon', 'sx', 'ผ่าตัด', 'ศัลยกรรม', 'แผล', 'อุบัติเหตุ', 'ศัลย์', 'ศัล']
+  },
+  {
+    value: 'OB-GYN',
+    nameEN: 'OB-GYN',
+    nameTH: 'OB-GYN (แผนกสูติ-นรีเวชกรรม)',
+    relatedKeywords: ['obgyn', 'ob-gyn', 'obstetrics', 'gynecology', 'pregnancy', 'สูติ', 'นรีเวช', 'คลอด', 'ตั้งครรภ์', 'ฝากครรภ์', 'ผู้หญิง', 'ทำคลอด']
+  },
+  {
+    value: 'Cardiology',
+    nameEN: 'Cardiology',
+    nameTH: 'Cardiology (แผนกโรคหัวใจ)',
+    relatedKeywords: ['cardiology', 'cardio', 'heart', 'หัวใจ', 'โรคหัวใจ', 'สวนหัวใจ', 'คาร์ดิโอ']
+  },
+  {
+    value: 'Orthopedics',
+    nameEN: 'Orthopedics',
+    nameTH: 'Orthopedics (แผนกกระดูกและข้อ)',
+    relatedKeywords: ['orthopedics', 'ortho', 'bone', 'joint', 'กระดูก', 'ข้อ', 'กล้ามเนื้อ', 'หัก', 'เฝือก', 'ออร์โธ']
+  },
+  {
+    value: 'Emergency Medicine',
+    nameEN: 'Emergency Medicine',
+    nameTH: 'Emergency Medicine (แผนกฉุกเฉิน / ER)',
+    relatedKeywords: ['emergency', 'er', 'accident', 'ฉุกเฉิน', 'อุบัติเหตุ', 'ด่วน', 'อีอาร์']
+  },
+  {
+    value: 'OPD',
+    nameEN: 'OPD',
+    nameTH: 'OPD (แผนกผู้ป่วยนอก)',
+    relatedKeywords: ['opd', 'ผู้ป่วยนอก', 'ตรวจโรคทั่วไป', 'ซักประวัติ', 'โอพีดี']
+  },
+  {
+    value: 'IPD',
+    nameEN: 'IPD',
+    nameTH: 'IPD (แผนกผู้ป่วยใน)',
+    relatedKeywords: ['ipd', 'ผู้ป่วยใน', 'นอนโรงพยาบาล', 'แอดมิท', 'admit', 'วอร์ด', 'ward', 'ไอพีดี']
+  },
+  {
+    value: 'Dermatology',
+    nameEN: 'Dermatology',
+    nameTH: 'Dermatology (แผนกโรคผิวหนัง)',
+    relatedKeywords: ['dermatology', 'derm', 'skin', 'ผิวหนัง', 'สิว', 'ผื่น', 'เลเซอร์', 'เดิร์ม']
+  },
+  {
+    value: 'Ophthalmology',
+    nameEN: 'Ophthalmology',
+    nameTH: 'Ophthalmology (แผนกจักษุวิทยา)',
+    relatedKeywords: ['ophthalmology', 'eye', 'vision', 'ตา', 'จักษุ', 'แว่นตา', 'ต้อกระจก', 'หมอตา']
+  },
+  {
+    value: 'ENT',
+    nameEN: 'ENT',
+    nameTH: 'ENT (แผนกหู คอ จมูก)',
+    relatedKeywords: ['ent', 'otolaryngology', 'ear', 'nose', 'throat', 'หู', 'คอ', 'จมูก', 'ไซนัส', 'อีเอ็นที']
+  },
+  {
+    value: 'Psychiatry',
+    nameEN: 'Psychiatry',
+    nameTH: 'Psychiatry (แผนกจิตเวช)',
+    relatedKeywords: ['psychiatry', 'psychiatrist', 'mental', 'จิตเวช', 'จิตแพทย์', 'ซึมเศร้า', 'เครียด', 'นอนไม่หลับ', 'จิต']
+  }
+];
 
 interface BookingFormProps {
   key?: string | number;
@@ -21,10 +109,12 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
     createBooking,
     updateBooking,
     fetchDrugs,
-    setSelectedPharmacyLocation
+    setSelectedPharmacyLocation,
+    spawnAlert
   } = useApp();
 
   const t = i18n[language];
+  const isNurse = currentUser?.role === 'Nurse';
 
   // Load existing data if edit mode
   const isEdit = !!editId;
@@ -45,6 +135,65 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
   );
   const [regimen, setRegimen] = useState(existingRecord ? existingRecord.regimen || '' : '');
   const [note, setNote] = useState(existingRecord ? existingRecord.note || '' : '');
+
+  // Search and select department states
+  const [deptSearchQuery, setDeptSearchQuery] = useState('');
+  const [isDeptDropdownOpen, setIsDeptDropdownOpen] = useState(false);
+
+  const dynamicDepts = useMemo(() => {
+    return Array.from(new Set(
+      (bookings || [])
+        .map(b => b.department)
+        .filter((d): d is string => typeof d === 'string' && d.trim().length > 0)
+    ));
+  }, [bookings]);
+
+  const allDeptOptions = useMemo(() => {
+    const result = [...PREDEFINED_DEPARTMENTS];
+    dynamicDepts.forEach(dept => {
+      const lowerDept = dept.toLowerCase();
+      const exists = PREDEFINED_DEPARTMENTS.some(pd => 
+        pd.value.toLowerCase() === lowerDept ||
+        pd.nameEN.toLowerCase() === lowerDept ||
+        pd.nameTH.toLowerCase() === lowerDept
+      );
+      if (!exists) {
+        result.push({
+          value: dept,
+          nameEN: dept,
+          nameTH: dept,
+          relatedKeywords: [dept.toLowerCase()]
+        });
+      }
+    });
+    return result;
+  }, [dynamicDepts]);
+
+  const filteredDepartments = useMemo(() => {
+    if (!deptSearchQuery.trim()) {
+      return allDeptOptions;
+    }
+    const query = deptSearchQuery.toLowerCase();
+    return allDeptOptions.filter(dept => 
+      dept.nameEN.toLowerCase().includes(query) ||
+      dept.nameTH.toLowerCase().includes(query) ||
+      dept.relatedKeywords.some(kw => kw.toLowerCase().includes(query))
+    );
+  }, [allDeptOptions, deptSearchQuery]);
+
+  // Sync department with search query on mount or edit or language changes
+  useEffect(() => {
+    if (department) {
+      const matched = PREDEFINED_DEPARTMENTS.find(d => d.value === department);
+      if (matched) {
+        setDeptSearchQuery(language === 'TH' ? matched.nameTH : matched.nameEN);
+      } else {
+        setDeptSearchQuery(department);
+      }
+    } else {
+      setDeptSearchQuery('');
+    }
+  }, [department, language]);
 
   // Dynamic compilation of previous clinical team entries across all bookings for seamless auto-suggestion/memory
   const dynamicBookedDoctors = Array.from(new Set(
@@ -109,6 +258,9 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
   // File Upload Progress
   const [imageEncoded, setImageEncoded] = useState<string>(existingRecord ? existingRecord.prescriptionImage : '');
   const [uploadBar, setUploadBar] = useState<number>(-1); // -1 is idle
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [isZoomModalOpen, setIsZoomModalOpen] = useState<boolean>(false);
+  const [modalZoom, setModalZoom] = useState<number>(1);
 
   const [validationError, setValidationError] = useState<string>('');
   const [successMsg, setSuccessMsg] = useState<string>('');
@@ -128,9 +280,20 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
     setPickerDrugType(mode);
   }, [mode]);
 
+  // Automatically detect and set the booking mode based on the medications added
+  useEffect(() => {
+    if (selectedMeds.length > 0) {
+      const hasOncology = selectedMeds.some((med) => {
+        const matchingDrug = drugs.find((d) => d.id === med.drugId);
+        return matchingDrug?.type === 'Oncology';
+      });
+      setMode(hasOncology ? 'Oncology' : 'General');
+    }
+  }, [selectedMeds, drugs]);
+
   const allActiveDrugs = drugs.filter((d) => !d.deleteRequested);
 
-  // If there's a search query, search across ALL categories. If empty, just show the selected category.
+  // Search across ALL categories dynamically
   const filteredDrugsBySearch = allActiveDrugs.filter((d) => {
     if (drugSearchQuery) {
       return (
@@ -138,18 +301,11 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
         d.stockCode.toLowerCase().includes(drugSearchQuery.toLowerCase())
       );
     }
-    return d.type === pickerDrugType;
+    return true; // List all active drugs when no search query
   });
 
   // Query selected drug obj
   const selectedDrugObj = allActiveDrugs.find((d) => d.id === activeDrugId);
-
-  // Reset selected drugs catalog on mode flip
-  useEffect(() => {
-    if (!isEdit) {
-      setSelectedMeds([]);
-    }
-  }, [mode]);
 
   // HN automatic formatted text watcher: 02-xx-xxxxxx
   const handleHNChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -180,36 +336,31 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
     setHn(formatted);
   };
 
-  // Image Upload and Encode pipeline
-  const processPrescriptionFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Image Upload and Encode pipeline with automatic Firestore-safe compression
+  const processPrescriptionFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 10 * 1024 * 1024) {
-      alert('File size exceeds safety capacity. Limit uploading to 10MB.');
+    if (file.size > 25 * 1024 * 1024) {
+      spawnAlert(language === 'TH' ? 'ขนาดไฟล์ใหญ่เกินขีดจำกัด โปรดอัปโหลดไฟล์ที่มีขนาดไม่เกิน 25MB' : 'File size exceeds safety capacity. Limit uploading to 25MB.', 'info');
       return;
     }
 
     setUploadBar(10);
-    // Simulate real upload sequence progress ticking
     const timer = setInterval(() => {
-      setUploadBar((prev) => {
-        if (prev >= 100) {
-          clearInterval(timer);
-          return 100;
-        }
-        return prev + 15;
-      });
-    }, 100);
+      setUploadBar((prev) => (prev >= 90 ? 90 : prev + 15));
+    }, 80);
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImageEncoded(reader.result as string);
-      setTimeout(() => {
-        setUploadBar(-1); // Hide progress indicator
-      }, 800);
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImage(file, 1200, 1200, 0.75);
+      setImageEncoded(compressed);
+    } catch (err) {
+      console.error('Failed to compress image:', err);
+    } finally {
+      clearInterval(timer);
+      setUploadBar(100);
+      setTimeout(() => setUploadBar(-1), 400);
+    }
   };
 
   // Drag and drop processing
@@ -217,27 +368,31 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
     e.preventDefault();
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     const file = e.dataTransfer.files?.[0];
     if (!file) return;
 
     if (!file.type.match('image.*')) {
-      alert('Only scan/image-based Rx files are supported.');
+      spawnAlert(language === 'TH' ? 'รองรับเฉพาะไฟล์รูปภาพใบสั่งยาเท่านั้น' : 'Only scan/image-based Rx files are supported.', 'info');
       return;
     }
 
     setUploadBar(20);
     const timer = setInterval(() => {
-      setUploadBar((prev) => (prev >= 100 ? 100 : prev + 20));
+      setUploadBar((prev) => (prev >= 90 ? 90 : prev + 20));
     }, 80);
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImageEncoded(reader.result as string);
-      setTimeout(() => setUploadBar(-1), 650);
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImage(file, 1200, 1200, 0.75);
+      setImageEncoded(compressed);
+    } catch (err) {
+      console.error('Failed to compress image:', err);
+    } finally {
+      clearInterval(timer);
+      setUploadBar(100);
+      setTimeout(() => setUploadBar(-1), 400);
+    }
   };
 
   // Live total sum recalculator based on price matrix
@@ -332,6 +487,15 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
       return;
     }
 
+    let finalPrescriptionImage = imageEncoded;
+    if (finalPrescriptionImage && finalPrescriptionImage.length > 400000) {
+      try {
+        finalPrescriptionImage = await compressImage(finalPrescriptionImage, 1000, 1000, 0.70);
+      } catch (err) {
+        console.error('Failed to compress image before submit:', err);
+      }
+    }
+
     const payload = {
       hn,
       patientName: patientName.trim(),
@@ -342,7 +506,7 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
       mode,
       medications: selectedMeds,
       totalAmount: grandTotal,
-      prescriptionImage: imageEncoded,
+      prescriptionImage: finalPrescriptionImage,
       regimen: regimen.trim(),
       note: note.trim(),
       staff: {
@@ -400,43 +564,6 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
         </span>
       </div>
 
-      {/* Mode Switches */}
-      {!isEdit && (
-        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
-          <label className="block text-[10px] uppercase font-bold tracking-wider text-slate-400">
-            {t.modeSelect}
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              id="mode-general-btn"
-              type="button"
-              onClick={() => setMode('General')}
-              className={`flex items-center justify-center p-2.5 rounded-lg border text-xs font-semibold transition-all ${
-                mode === 'General'
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              <span className="w-2 h-2 bg-blue-300 rounded-full mr-2"></span>
-              {t.modeGeneral}
-            </button>
-            <button
-              id="mode-oncology-btn"
-              type="button"
-              onClick={() => setMode('Oncology')}
-              className={`flex items-center justify-center p-2.5 rounded-lg border text-xs font-semibold transition-all ${
-                mode === 'Oncology'
-                  ? 'bg-red-600 text-white border-red-600 shadow-xs'
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              <span className="w-2 h-2 bg-red-300 rounded-full mr-2"></span>
-              {t.modeOncology}
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Grid of basic patient identification */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5 bg-white p-4 md:p-5 rounded-xl border border-slate-200 shadow-sm">
         <div className="col-span-1 md:col-span-2">
@@ -473,20 +600,6 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
         </div>
 
         <div>
-          <label className="block text-xs md:text-sm font-bold text-slate-700 mb-1.5">
-            {language === 'TH' ? 'วันที่จองยา *' : 'Booking Date *'}
-          </label>
-          <input
-            id="booking-date-input"
-            type="date"
-            required
-            value={bookingDate}
-            onChange={(e) => setBookingDate(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 px-2.5 py-2 md:px-3 md:py-2.5 rounded-lg text-xs md:text-sm focus:outline-hidden focus:border-blue-500 focus:bg-white"
-          />
-        </div>
-
-        <div>
           <label className="block text-xs md:text-sm font-bold text-slate-700 mb-1.5">{t.dateOfUse} *</label>
           <input
             id="date-of-use-input"
@@ -498,59 +611,111 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
           />
         </div>
 
-        <div>
+        <div className="relative">
           <label className="block text-xs md:text-sm font-bold text-slate-700 mb-1.5">{t.department} *</label>
-          <select
-            id="department-select"
-            required
-            value={department}
-            onChange={(e) => setDepartment(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 px-2.5 py-2 md:px-3 md:py-2.5 rounded-lg text-xs md:text-sm font-medium focus:outline-hidden focus:border-blue-500 focus:bg-white"
-          >
-            <option value="" disabled>-- Select Department --</option>
-            <option value="Oncology">Oncology</option>
-            <option value="Medicine Subboard">Medicine Subboard</option>
-            <option value="Diabetic & Endocrine">Diabetic & Endocrine</option>
-            <option value="Mental Health">Mental Health</option>
-            <option value="Heart Center">Heart Center</option>
-            <option value="Neuroscience">Neuroscience</option>
-            <option value="GI">GI</option>
-            <option value="ENT">ENT</option>
-            <option value="Women health">Women health</option>
-            <option value="Orthopedic">Orthopedic</option>
-            <option value="Urology">Urology</option>
-            <option value="Dermatology">Dermatology</option>
-            <option value="Pediatrics">Pediatrics</option>
-            <option value="Eye center">Eye center</option>
-            <option value="Lasik center">Lasik center</option>
-            <option value="Prestige Wellness">Prestige Wellness</option>
-            <option value="Hemodialysis">Hemodialysis</option>
-            <option value="Rehab">Rehab</option>
-          </select>
+          <div className="relative" id="department-select-container">
+            <div className="relative flex items-center">
+              <input
+                id="department-input"
+                type="text"
+                required
+                value={deptSearchQuery}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setDeptSearchQuery(val);
+                  setDepartment(val);
+                }}
+                onFocus={() => setIsDeptDropdownOpen(true)}
+                onBlur={() => {
+                  // Slight delay to allow option onMouseDown event to register
+                  setTimeout(() => setIsDeptDropdownOpen(false), 220);
+                }}
+                placeholder={language === 'TH' ? 'พิมพ์ค้นหาแผนก เช่น Oncology, อายุรกรรม, มะเร็ง, หัวใจ' : 'Search department e.g. Oncology, Med, Heart'}
+                className="w-full bg-slate-50 border border-slate-200 pl-3 pr-10 py-2 md:py-2.5 rounded-lg text-xs md:text-sm focus:outline-hidden focus:border-blue-500 focus:bg-white font-medium"
+                autoComplete="off"
+              />
+              
+              <div className="absolute right-2.5 flex items-center gap-1">
+                {deptSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeptSearchQuery('');
+                      setDepartment('');
+                    }}
+                    className="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isDeptDropdownOpen ? 'rotate-180' : ''}`} />
+              </div>
+            </div>
+
+            {isDeptDropdownOpen && (
+              <div className="absolute left-0 mt-1 w-full max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg z-50 divide-y divide-slate-100 custom-mini-scroll animate-fade-in">
+                {filteredDepartments.length === 0 ? (
+                  <div className="p-3 text-center text-xs text-slate-400/80">
+                    {language === 'TH' ? '❌ ไม่พบข้อมูลแผนก กดเพื่อใช้คำนี้' : '❌ No matching departments, click to use typed text'}
+                  </div>
+                ) : (
+                  filteredDepartments.map((dept) => (
+                    <div
+                      key={dept.value}
+                      onMouseDown={() => {
+                        setDepartment(dept.value);
+                        setDeptSearchQuery(language === 'TH' ? dept.nameTH : dept.nameEN);
+                        setIsDeptDropdownOpen(false);
+                      }}
+                      className={`p-2.5 text-xs text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer transition-colors text-left font-sans ${
+                        department === dept.value ? 'bg-blue-50 font-bold text-blue-800' : ''
+                      }`}
+                    >
+                      <div className="font-bold text-slate-800">{language === 'TH' ? dept.nameTH : dept.nameEN}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5 flex flex-wrap gap-1">
+                        <span className="font-semibold text-slate-500">
+                          {language === 'TH' ? 'คำที่เกี่ยวข้อง:' : 'Keywords:'}
+                        </span>
+                        {dept.relatedKeywords.slice(0, 5).map((kw, idx) => (
+                          <span key={idx} className="bg-slate-100 text-slate-600 px-1 rounded text-[9px]">
+                            {kw}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
-        <div>
-          <label className="block text-xs md:text-sm font-bold text-slate-700 mb-1.5">{t.pharmacyLocation}</label>
-          <select
-            id="pharmacy-location-select"
-            value={pharmacyLocation}
-            onChange={(e) => {
-              const val = e.target.value;
-              setPharmacyLocation(val);
-              if (val) {
-                setSelectedPharmacyLocation(val);
-              }
-            }}
-            className="w-full bg-slate-50 border border-slate-200 px-2.5 py-2 md:px-3 md:py-2.5 rounded-lg text-xs md:text-sm font-medium focus:outline-hidden focus:border-blue-500 focus:bg-white"
-          >
-            <option value="">{t.pharmacyLocationPlaceholder}</option>
-            <option value="Phar IV">Phar IV</option>
-            <option value="Phar A1">Phar A1</option>
-            <option value="Phar E3">Phar E3</option>
-            <option value="Phar E6">Phar E6</option>
-            <option value="Phar D">Phar D</option>
-          </select>
-        </div>
+        {!isNurse ? (
+          <div>
+            <label className="block text-xs md:text-sm font-bold text-slate-700 mb-1.5">{t.pharmacyLocation}</label>
+            <select
+              id="pharmacy-location-select"
+              value={pharmacyLocation}
+              onChange={(e) => {
+                const val = e.target.value;
+                setPharmacyLocation(val);
+                if (val) {
+                  setSelectedPharmacyLocation(val);
+                }
+              }}
+              className="w-full bg-slate-50 border border-slate-200 px-2.5 py-2 md:px-3 md:py-2.5 rounded-lg text-xs md:text-sm font-medium focus:outline-hidden focus:border-blue-500 focus:bg-white"
+            >
+              <option value="">{t.pharmacyLocationPlaceholder}</option>
+              <option value="Phar IV">Phar IV</option>
+              <option value="Phar A1">Phar A1</option>
+              <option value="Phar E3">Phar E3</option>
+              <option value="Phar E6">Phar E6</option>
+              <option value="Phar D">Phar D</option>
+            </select>
+          </div>
+        ) : (
+          <div className="hidden"></div>
+        )}
 
         <div className="col-span-1 md:col-span-2">
           <label className="block text-[10px] uppercase font-bold tracking-wider text-slate-400 mb-2">{t.patientType}</label>
@@ -615,26 +780,6 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
 
         {/* Drug picker line */}
         <div className="flex flex-col sm:flex-row gap-2 md:gap-3 bg-slate-50 p-2 md:p-3 rounded-lg border border-slate-200 items-stretch sm:items-end">
-          {/* Classification type selector inside picker */}
-          <div className="w-full sm:w-44 text-left">
-            <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">
-              {language === 'TH' ? 'หมวดหมู่ยา' : 'Drug Category'}
-            </label>
-            <select
-              id="picker-drug-type-select"
-              value={pickerDrugType}
-              onChange={(e) => {
-                setPickerDrugType(e.target.value as 'General' | 'Oncology');
-                setActiveDrugId(''); // Clear selection when category changes
-                setDrugSearchQuery('');
-              }}
-              className="w-full bg-white border border-slate-200 px-2.5 py-2 md:py-2.5 rounded-lg text-xs md:text-sm font-semibold focus:outline-hidden focus:border-blue-500 cursor-pointer animate-fade-in"
-            >
-              <option value="General">{t.modeGeneral}</option>
-              <option value="Oncology">{t.modeOncology}</option>
-            </select>
-          </div>
-
           <div className="flex-1 w-full text-left">
             <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">
               {t.selectDrug}
@@ -655,7 +800,7 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
                   onFocus={() => setIsDropdownOpen(true)}
                   onBlur={() => {
                     // Slight delay to allow option onMouseDown event to register
-                    setTimeout(() => setIsDropdownOpen(false), 200);
+                    setTimeout(() => setIsDropdownOpen(false), 205);
                   }}
                   className="w-full bg-white border border-slate-200 pl-3 pr-8 py-2 md:py-2.5 rounded-lg text-xs md:text-sm font-semibold focus:outline-hidden focus:border-blue-500 focus:bg-white animate-fade-in"
                 />
@@ -693,6 +838,7 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
                           setActiveDrugId(d.id);
                           setDrugSearchQuery(d.name);
                           setPickerDrugType(d.type);
+                          setMode(d.type); // Auto-detect and set the booking mode
                           setIsDropdownOpen(false);
                         }}
                         className={`p-2.5 text-xs text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer transition-colors text-left font-sans ${
@@ -701,7 +847,7 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
                       >
                         <div className="font-bold text-slate-800">{d.name}</div>
                         <div className="text-[10px] text-slate-500 mt-1 flex items-center justify-between">
-                          <span>Code: <span className="font-mono bg-slate-100 px-1 py-0.5 rounded text-slate-700">{d.stockCode}</span></span>
+                          <span>Type: <span className={`px-1 rounded text-[9px] font-bold ${d.type === 'Oncology' ? 'bg-red-150 bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>{d.type}</span></span>
                           <span className="font-bold text-blue-600">฿{d.prices[patientType].toLocaleString()}</span>
                         </div>
                       </div>
@@ -722,9 +868,19 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
               min="1"
               value={activeQty}
               onChange={(e) => setActiveQty(Math.max(1, parseInt(e.target.value) || 1))}
-              className="w-full bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs focus:outline-hidden text-center"
+              className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-xs focus:outline-hidden text-center"
             />
           </div>
+
+          {selectedDrugObj && (
+            <div className="w-full sm:w-auto px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg text-xs font-bold text-blue-700 self-stretch sm:self-end flex flex-col justify-center animate-fade-in min-w-[120px]">
+              <span className="text-[9px] uppercase text-blue-400 font-extrabold">{language === 'TH' ? 'ราคายาจริง' : 'Price Preview'}</span>
+              <div className="text-sm font-black mt-0.5">
+                ฿{(selectedDrugObj.prices[patientType] || 0).toLocaleString()}
+              </div>
+              <span className="text-[8px] text-blue-500 font-medium">({language === 'TH' ? 'รวมยอด:' : 'Total:'} ฿{((selectedDrugObj.prices[patientType] || 0) * activeQty).toLocaleString()})</span>
+            </div>
+          )}
 
           <div className="flex items-end">
             <button
@@ -755,7 +911,6 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
               <thead>
                 <tr className="bg-slate-50 text-slate-500 uppercase tracking-wider text-[10px] font-bold border-b border-slate-200">
                   <th className="p-3">Medicine Info</th>
-                  <th className="p-3">Stock Code</th>
                   <th className="p-3 text-center">Qty</th>
                   <th className="p-3 text-right">Unit Price</th>
                   <th className="p-3 text-right">Subtotal</th>
@@ -766,7 +921,6 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
                 {selectedMeds.map((med) => (
                   <tr key={med.drugId} className="hover:bg-slate-50/55 transition-colors text-slate-700">
                     <td className="p-3 font-semibold text-slate-800">{med.drugName}</td>
-                    <td className="p-3 text-slate-400 font-bold">{med.stockCode}</td>
                     <td className="p-3 font-semibold text-center">{med.quantity}</td>
                     <td className="p-3 text-right text-slate-500 font-semibold">฿{med.unitPrice.toLocaleString()}</td>
                     <td className="p-3 text-right font-bold text-slate-800">฿{med.totalPrice.toLocaleString()}</td>
@@ -783,7 +937,7 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
                 ))}
                 {/* Total Line */}
                 <tr className="bg-blue-50/30 border-t border-slate-200 font-bold">
-                  <td colSpan={4} className="p-3 text-right text-slate-600 uppercase tracking-wider">
+                  <td colSpan={3} className="p-3 text-right text-slate-600 uppercase tracking-wider">
                     {t.totalAmount}:
                   </td>
                   <td className="p-3 text-right text-blue-700 font-bold text-sm">
@@ -818,21 +972,82 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
           />
 
           {imageEncoded ? (
-            <div className="space-y-2">
-              <div className="w-24 h-24 mx-auto rounded-lg overflow-hidden border border-slate-200 shadow-xs">
-                <img src={imageEncoded} alt="prescription scan" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-              </div>
-              <p className="text-xs text-slate-500 font-mono">Rx_Document_Asset_Stored.png</p>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setImageEncoded('');
-                }}
-                className="text-xs text-red-500 font-semibold hover:underline cursor-pointer"
+            <div className="space-y-3 z-10 relative">
+              {/* Image Container with Zoom support */}
+              <div
+                className="w-48 h-48 md:w-56 md:h-56 mx-auto rounded-xl overflow-hidden border-2 border-blue-200 bg-slate-900 shadow-md relative flex items-center justify-center group"
+                onClick={(e) => e.stopPropagation()}
               >
-                Remove Document
-              </button>
+                <img
+                  src={imageEncoded}
+                  alt="prescription scan"
+                  className="max-w-full max-h-full object-contain transition-transform duration-200 ease-out"
+                  style={{ transform: `scale(${zoomLevel})` }}
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+
+              {/* Zoom Controls Bar */}
+              <div
+                className="flex items-center justify-center gap-1.5 bg-white border border-slate-200 shadow-xs rounded-lg p-1.5 max-w-xs mx-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  onClick={() => setZoomLevel((prev) => Math.max(0.5, prev - 0.25))}
+                  className="p-1 hover:bg-slate-100 rounded-md text-slate-600 transition-colors cursor-pointer"
+                  title={language === 'TH' ? 'ย่อขนาด (Zoom Out)' : 'Zoom Out'}
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </button>
+                <span className="text-[10px] font-mono font-bold text-slate-700 min-w-[42px] text-center">
+                  {Math.round(zoomLevel * 100)}%
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setZoomLevel((prev) => Math.min(3, prev + 0.25))}
+                  className="p-1 hover:bg-slate-100 rounded-md text-slate-600 transition-colors cursor-pointer"
+                  title={language === 'TH' ? 'ขยายขนาด (Zoom In)' : 'Zoom In'}
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setZoomLevel(1)}
+                  className="p-1 hover:bg-slate-100 rounded-md text-slate-500 transition-colors cursor-pointer"
+                  title={language === 'TH' ? 'รีเซ็ตขนาด (100%)' : 'Reset Zoom'}
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </button>
+                <div className="w-px h-4 bg-slate-200 mx-0.5"></div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModalZoom(1);
+                    setIsZoomModalOpen(true);
+                  }}
+                  className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-md text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                  title={language === 'TH' ? 'ขยายเต็มหน้าจอ' : 'View Fullscreen'}
+                >
+                  <Maximize2 className="w-3.5 h-3.5" />
+                  {language === 'TH' ? 'ดูภาพใหญ่' : 'Expand'}
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between text-xs pt-1 px-2">
+                <p className="text-[11px] text-slate-500 font-mono">Rx_Document_Asset_Stored.png</p>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setImageEncoded('');
+                    setZoomLevel(1);
+                  }}
+                  className="text-xs text-red-500 font-semibold hover:underline cursor-pointer"
+                >
+                  {language === 'TH' ? 'ลบไฟล์รูปภาพ' : 'Remove Document'}
+                </button>
+              </div>
             </div>
           ) : (
             <div className="space-y-1">
@@ -900,23 +1115,27 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
             </datalist>
           </div>
 
-          <div>
-            <label className="block text-xs md:text-sm font-bold text-slate-700 mb-1.5">{t.selectPharmacist}</label>
-            <input
-              id="pharmacist-input"
-              type="text"
-              list="pharmacists-list"
-              placeholder="e.g., Dr. Sarah Smith (Pharmacist)"
-              value={pharmacist}
-              onChange={(e) => setPharmacist(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 px-2.5 py-2 md:px-3 md:py-2 rounded-lg text-xs md:text-sm focus:outline-hidden"
-            />
-            <datalist id="pharmacists-list">
-              {suggestedPharmacists.map((ph) => (
-                <option key={ph} value={ph} />
-              ))}
-            </datalist>
-          </div>
+          {!isNurse ? (
+            <div>
+              <label className="block text-xs md:text-sm font-bold text-slate-700 mb-1.5">{t.selectPharmacist}</label>
+              <input
+                id="pharmacist-input"
+                type="text"
+                list="pharmacists-list"
+                placeholder="e.g., Dr. Sarah Smith (Pharmacist)"
+                value={pharmacist}
+                onChange={(e) => setPharmacist(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 px-2.5 py-2 md:px-3 md:py-2 rounded-lg text-xs md:text-sm focus:outline-hidden"
+              />
+              <datalist id="pharmacists-list">
+                {suggestedPharmacists.map((ph) => (
+                  <option key={ph} value={ph} />
+                ))}
+              </datalist>
+            </div>
+          ) : (
+            <div className="hidden"></div>
+          )}
         </div>
       </div>
 
@@ -1058,7 +1277,7 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
                           <div className="text-[8px] text-slate-450 font-bold">{item.stockCode} • {item.priceType ? item.priceType.toUpperCase() : 'General'}</div>
                         </td>
                         <td className="p-2.5 text-center font-bold text-slate-700">{item.quantity}</td>
-                        <td className="p-2.5 text-right font-bold text-indigo-950">฿{(item.subtotal || 0).toLocaleString(undefined, { minimumFractionDigits: 1 })}</td>
+                        <td className="p-2.5 text-right font-bold text-indigo-950">฿{(item.totalPrice ?? item.subtotal ?? (item.unitPrice ? item.unitPrice * item.quantity : 0)).toLocaleString(undefined, { minimumFractionDigits: 1 })}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1105,6 +1324,94 @@ export default function BookingForm({ editId, onSuccess, onCancel }: BookingForm
         </div>
       </div>
     )}
+
+      {/* Lightbox Zoom Modal for Prescription Scan */}
+      {isZoomModalOpen && imageEncoded && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-between p-4 transition-all animate-fade-in"
+          onClick={() => setIsZoomModalOpen(false)}
+        >
+          {/* Modal Header Controls */}
+          <div
+            className="w-full max-w-4xl bg-slate-900/90 border border-slate-800 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-3 shadow-xl z-20 text-white"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2">
+              <ImageIcon className="w-5 h-5 text-blue-400" />
+              <span className="font-bold text-xs uppercase tracking-wider text-slate-200">
+                {language === 'TH' ? 'รูปภาพใบสั่งยาต้นฉบับ (Prescription Scan Viewer)' : 'Prescription Scan Fullscreen Viewer'}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 bg-slate-800 border border-slate-700 rounded-lg p-1 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setModalZoom((prev) => Math.max(0.5, prev - 0.25))}
+                  className="p-1.5 hover:bg-slate-700 rounded-md text-slate-200 transition-colors cursor-pointer"
+                  title="Zoom Out (-)"
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </button>
+                <span className="font-mono font-bold text-blue-400 min-w-[45px] text-center text-xs">
+                  {Math.round(modalZoom * 100)}%
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setModalZoom((prev) => Math.min(4, prev + 0.25))}
+                  className="p-1.5 hover:bg-slate-700 rounded-md text-slate-200 transition-colors cursor-pointer"
+                  title="Zoom In (+)"
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModalZoom(1)}
+                  className="p-1.5 hover:bg-slate-700 rounded-md text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                  title="Reset (100%)"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsZoomModalOpen(false)}
+                className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors cursor-pointer flex items-center gap-1 font-bold text-xs"
+              >
+                <X className="w-4 h-4" />
+                {language === 'TH' ? 'ปิด' : 'Close'}
+              </button>
+            </div>
+          </div>
+
+          {/* Scrollable / Zoomable Image Canvas */}
+          <div
+            className="flex-1 w-full max-w-5xl my-4 overflow-auto flex items-center justify-center relative rounded-2xl bg-slate-900/50 border border-slate-800/80 p-4"
+            onClick={(e) => e.stopPropagation()}
+            onWheel={(e) => {
+              e.preventDefault();
+              if (e.deltaY < 0) {
+                setModalZoom((prev) => Math.min(4, prev + 0.2));
+              } else {
+                setModalZoom((prev) => Math.max(0.5, prev - 0.2));
+              }
+            }}
+          >
+            <img
+              src={imageEncoded}
+              alt="Prescription document full preview"
+              className="max-w-none transition-transform duration-150 ease-out cursor-grab active:cursor-grabbing rounded-lg shadow-2xl"
+              style={{ transform: `scale(${modalZoom})` }}
+              referrerPolicy="no-referrer"
+            />
+          </div>
+
+          <div className="text-[11px] text-slate-400 font-mono text-center">
+            {language === 'TH' ? 'หมุน Scroll Wheel หรือใช้ปุ่ม + / - เพื่อย่อขยายภาพ' : 'Use mouse scroll wheel or +/- buttons to zoom'}
+          </div>
+        </div>
+      )}
   </>
 );
 }

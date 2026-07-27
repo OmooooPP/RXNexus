@@ -9,6 +9,7 @@ import UserAdminManager from './components/UserAdminManager';
 import ReportPrinter from './components/ReportPrinter';
 import OwingMedPanel from './components/OwingMedPanel';
 import DatabaseMaintenance from './components/DatabaseMaintenance';
+import PriceEstimation from './components/PriceEstimation';
 import LoadingSpinner from './components/LoadingSpinner';
 import BHPLogo from './components/BHPLogo';
 import { Booking, UserRole } from './types';
@@ -29,7 +30,8 @@ import {
   PlusCircle,
   Clock,
   AlertCircle,
-  Database
+  Database,
+  Calculator
 } from 'lucide-react';
 
 function DashboardLayout() {
@@ -74,7 +76,7 @@ function DashboardLayout() {
   const todayStr = new Date().toISOString().split('T')[0];
 
   // Active UI Navigation Tab State
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'booking' | 'calendar' | 'stocks' | 'users' | 'reports' | 'logs' | 'owing' | 'maintenance'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'booking' | 'calendar' | 'stocks' | 'users' | 'reports' | 'logs' | 'owing' | 'maintenance' | 'estimation'>('booking');
 
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
 
@@ -278,18 +280,6 @@ function DashboardLayout() {
 
             <nav className="space-y-1 font-sans">
               <button
-                onClick={() => setActiveTab('dashboard')}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
-                  activeTab === 'dashboard'
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                <Layers className="w-4 h-4 shrink-0" />
-                {t.navDashboard}
-              </button>
-
-              <button
                 onClick={() => setActiveTab('booking')}
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
                   activeTab === 'booking'
@@ -299,6 +289,18 @@ function DashboardLayout() {
               >
                 <PlusCircle className="w-4 h-4 shrink-0" />
                 {t.navBooking}
+              </button>
+
+              <button
+                onClick={() => setActiveTab('dashboard')}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+                  activeTab === 'dashboard'
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <Layers className="w-4 h-4 shrink-0" />
+                {t.navDashboard}
               </button>
 
               <button
@@ -336,6 +338,23 @@ function DashboardLayout() {
                 <FileSpreadsheet className="w-4 h-4 shrink-0" />
                 {t.reportsTitle}
               </button>
+
+              {(currentUser?.role === 'Admin' ||
+                currentUser?.role === 'Pharmacist' ||
+                currentUser?.role === 'Nurse' ||
+                currentUser?.role === 'Doctor') && (
+                <button
+                  onClick={() => setActiveTab('estimation')}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+                    activeTab === 'estimation'
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <Calculator className="w-4 h-4 shrink-0" />
+                  {t.navEstimation}
+                </button>
+              )}
 
               {(currentUser?.role === 'Pharmacist' ||
                 currentUser?.role === 'Pharmacist Assistant' ||
@@ -526,6 +545,13 @@ function DashboardLayout() {
             <ReportPrinter />
           )}
 
+          {activeTab === 'estimation' && (currentUser?.role === 'Admin' ||
+            currentUser?.role === 'Pharmacist' ||
+            currentUser?.role === 'Nurse' ||
+            currentUser?.role === 'Doctor') && (
+            <PriceEstimation />
+          )}
+
           {activeTab === 'owing' && (currentUser?.role === 'Pharmacist' ||
             currentUser?.role === 'Pharmacist Assistant' ||
             currentUser?.role === 'Pharmacy Stock Clerk' ||
@@ -550,16 +576,6 @@ function DashboardLayout() {
       {/* Mobile Bottom Navigation (Thumb Zone) */}
       <nav className="md:hidden fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 z-50 flex justify-between items-center sm:px-6 px-2 h-16 print:hidden pb-[env(safe-area-inset-bottom)]">
         <button
-          onClick={() => setActiveTab('dashboard')}
-          className={`flex-1 flex flex-col items-center justify-center space-y-1 ${
-            activeTab === 'dashboard' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          <Layers className="w-5 h-5 shrink-0" />
-          <span className="text-[9px] font-bold tracking-wider">{language === 'TH' ? 'หน้าหลัก' : 'Home'}</span>
-        </button>
-
-        <button
           onClick={() => setActiveTab('booking')}
           className="flex-1 flex flex-col items-center justify-center -mt-5"
         >
@@ -571,6 +587,16 @@ function DashboardLayout() {
           <span className={`text-[9px] font-bold tracking-wider mt-1 ${activeTab === 'booking' ? 'text-blue-600' : 'text-slate-400'}`}>
             {language === 'TH' ? 'จองยา' : 'Book'}
           </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          className={`flex-1 flex flex-col items-center justify-center space-y-1 ${
+            activeTab === 'dashboard' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          <Layers className="w-5 h-5 shrink-0" />
+          <span className="text-[9px] font-bold tracking-wider">{language === 'TH' ? 'หน้าหลัก' : 'Home'}</span>
         </button>
 
         <button

@@ -295,14 +295,14 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
                 {isPatientReceipt
                   ? (language === 'TH' ? 'ใบรับยาเวชภัณฑ์สำรองผู้ป่วยนอก' : 'Outpatient Medication Receipt & Sourcing Summary')
                   : isStaffVoucher
-                    ? (language === 'TH' ? 'ใบอนุญาตจัดจัดเตรียมเวชภัณฑ์ยาผู้ป่วยนอก' : 'Patient Medication Requisition Voucher')
+                    ? (language === 'TH' ? 'ใบรายละเอียดเวชภัณฑ์' : 'Patient Medication Requisition Voucher')
                     : (language === 'TH' ? 'ใบจัดเตรียมเวชภัณฑ์ค้างส่งและยอดสั่งซื้อสะสม' : 'Aggregate Sourcing Logistics & Supply Bill')}
               </h2>
               <p className="text-[9px] text-slate-400 uppercase tracking-widest font-semibold font-mono mt-1.5 leading-none">
                 {isPatientReceipt
                   ? (language === 'TH' ? 'เอกสารมอบสิทธิ์ผู้ป่วยในการตรวจสอบรับ' : 'OFFICIAL PATIENT DISPENSARY RECEIPT')
                   : isStaffVoucher
-                    ? (language === 'TH' ? 'เอกสารตรวจสอบเบิกสิทธิ์ชั้นหน่วยงานคลินิก' : 'SYSTEM CLINIC INFRASTRUCTURE VOUCHER')
+                    ? (language === 'TH' ? '' : 'SYSTEM CLINIC INFRASTRUCTURE VOUCHER')
                     : (language === 'TH' ? 'รายงานตรวจสอบยอดความต้องการคลังสรุปยอดรวม' : 'LEDGER REPORT — DETAILED INDIVIDUAL ALLOCATIONS')}
               </p>
             </div>

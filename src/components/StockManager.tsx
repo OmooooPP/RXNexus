@@ -16,7 +16,8 @@ export default function StockManager() {
     rejectDeleteDrug,
     requestEditDrug,
     approveEditDrug,
-    rejectEditDrug
+    rejectEditDrug,
+    spawnAlert
   } = useApp();
 
   const t = i18n[language];
@@ -30,6 +31,8 @@ export default function StockManager() {
   // Deletion request states
   const [pendingDeleteDrugId, setPendingDeleteDrugId] = useState<string | null>(null);
   const [deleteReasonText, setDeleteReasonText] = useState('');
+  const [adminDeletingDrug, setAdminDeletingDrug] = useState<Drug | null>(null);
+  const [adminRejectingDrug, setAdminRejectingDrug] = useState<Drug | null>(null);
 
   // List Searching & Classification Filters
   const [listSearchQuery, setListSearchQuery] = useState('');
@@ -174,14 +177,7 @@ export default function StockManager() {
                 <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
                   <button
                     type="button"
-                    onClick={async () => {
-                      if (confirm(t.deleteWarning)) {
-                        const res = await deleteDrug(drug.id);
-                        if (!res.success) {
-                          alert(res.error || 'Failed to approve delete');
-                        }
-                      }
-                    }}
+                    onClick={() => setAdminDeletingDrug(drug)}
                     className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-[10px] font-bold uppercase rounded-lg transition-colors shadow-xs flex items-center gap-1 cursor-pointer"
                   >
                     <Check className="w-3.5 h-3.5" />
@@ -191,8 +187,10 @@ export default function StockManager() {
                     type="button"
                     onClick={async () => {
                       const res = await rejectDeleteDrug(drug.id);
-                      if (!res.success) {
-                        alert(res.error || 'Failed to reject delete');
+                      if (res.success) {
+                        spawnAlert(language === 'TH' ? 'ปฏิเสธคำขอลบแล้ว' : 'Deletion request rejected.', 'success');
+                      } else {
+                        spawnAlert(res.error || 'Failed to reject delete', 'info');
                       }
                     }}
                     className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-[10px] font-bold uppercase rounded-lg transition-colors cursor-pointer flex items-center gap-1"
@@ -248,8 +246,10 @@ export default function StockManager() {
                         type="button"
                         onClick={async () => {
                           const res = await approveEditDrug(drug.id);
-                          if (!res.success) {
-                            alert(res.error || 'Failed to approve edit');
+                          if (res.success) {
+                            spawnAlert(language === 'TH' ? 'อนุมัติการแก้ไขรายการยาสำเร็จ' : 'Drug modification approved successfully!', 'success');
+                          } else {
+                            spawnAlert(res.error || 'Failed to approve edit', 'info');
                           }
                         }}
                         className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold uppercase rounded-lg transition-colors shadow-xs flex items-center gap-1 cursor-pointer font-sans"
@@ -261,8 +261,10 @@ export default function StockManager() {
                         type="button"
                         onClick={async () => {
                           const res = await rejectEditDrug(drug.id);
-                          if (!res.success) {
-                            alert(res.error || 'Failed to reject edit');
+                          if (res.success) {
+                            spawnAlert(language === 'TH' ? 'ปฏิเสธการแก้ไขรายการยาแล้ว' : 'Drug modification request rejected.', 'success');
+                          } else {
+                            spawnAlert(res.error || 'Failed to reject edit', 'info');
                           }
                         }}
                         className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-[10px] font-bold uppercase rounded-lg transition-colors cursor-pointer flex items-center gap-1 font-sans"
@@ -366,15 +368,16 @@ export default function StockManager() {
                 type="button"
                 onClick={async () => {
                   if (!deleteReasonText.trim()) {
-                    alert(t.deleteReasonRequired);
+                    spawnAlert(t.deleteReasonRequired, 'info');
                     return;
                   }
                   const res = await requestDeleteDrug(pendingDeleteDrugId, deleteReasonText.trim());
                   if (res.success) {
                     setPendingDeleteDrugId(null);
                     setDeleteReasonText('');
+                    spawnAlert(language === 'TH' ? 'ส่งคำขอลบยาสำเร็จแล้ว' : 'Deletion authorization request submitted successfully!', 'success');
                   } else {
-                    alert(res.error || 'Failed to submit request');
+                    spawnAlert(res.error || 'Failed to submit request', 'info');
                   }
                 }}
                 className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold uppercase transition-all shadow-xs cursor-pointer"
@@ -696,12 +699,7 @@ export default function StockManager() {
                         type="button"
                         onClick={async () => {
                           if (currentUser?.role === 'Admin') {
-                            if (confirm(t.deleteWarning)) {
-                              const res = await deleteDrug(drug.id);
-                              if (!res.success) {
-                                alert(res.error || 'Failed to delete');
-                              }
-                            }
+                            setAdminDeletingDrug(drug);
                           } else {
                             setPendingDeleteDrugId(drug.id);
                             setDeleteReasonText('');
@@ -726,6 +724,66 @@ export default function StockManager() {
           </tbody>
         </table>
       </div>
+
+      {/* Admin Custom Delete Confirmation Modal */}
+      {adminDeletingDrug && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 transition-all animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-2xl max-w-md w-full flex flex-col overflow-hidden animate-scale-up">
+            <div className="p-5 bg-red-50 border-b border-red-100/60 flex items-center gap-3">
+              <div className="p-2 bg-red-100 text-red-600 rounded-lg">
+                <Trash className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-red-950 uppercase tracking-tight">
+                  {language === 'TH' ? 'ยืนยันการลบรายการยาถาวร' : 'Confirm Drug Catalog Delete'}
+                </h3>
+                <p className="text-[10px] text-red-600 font-medium mt-0.5 font-mono">
+                  CODE: {adminDeletingDrug.stockCode}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-3 text-xs leading-relaxed text-slate-600 font-sans">
+              <p className="font-semibold text-rose-700 text-xs">
+                {language === 'TH'
+                  ? '⚠️ คำเตือน: การกระทำนี้เป็นการลบข้อมูลอย่างถาวรและไม่สามารถเรียกคืนได้!'
+                  : '⚠️ Warning: This action is permanent and cannot be undone!'}
+              </p>
+              <p>
+                {language === 'TH'
+                  ? `คุณกำลังจะลบรายการยา "${adminDeletingDrug.name}" ออกจากระบบหลัก การกระทำนี้จะลบราคาทั้งหมดและจะไม่สามารถเลือกยานี้ในการจองครั้งถัดไปได้`
+                  : `You are about to permanently purge "${adminDeletingDrug.name}" from the active therapeutic catalog. Future reservations will no longer be able to select this medication code.`}
+              </p>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setAdminDeletingDrug(null)}
+                className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-bold uppercase transition-all cursor-pointer"
+              >
+                {t.cancel}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const drugId = adminDeletingDrug.id;
+                  setAdminDeletingDrug(null);
+                  const res = await deleteDrug(drugId);
+                  if (res.success) {
+                    spawnAlert(language === 'TH' ? 'ลบรายการยาเรียบร้อยแล้ว' : 'Drug item deleted permanently from catalog.', 'success');
+                  } else {
+                    spawnAlert(res.error || 'Failed to delete drug', 'info');
+                  }
+                }}
+                className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold uppercase transition-all shadow-md hover:shadow-lg active:scale-95 duration-150 cursor-pointer"
+              >
+                {language === 'TH' ? 'ยืนยันลบถาวร' : 'Confirm Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

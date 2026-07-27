@@ -2,15 +2,19 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { i18n } from '../lib/i18n';
 import { Booking, formatDateToDMY } from '../types';
-import { ChevronLeft, ChevronRight, HelpCircle, Check, Clock, Loader, Calendar as CalIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, HelpCircle, Check, Clock, Loader, Calendar as CalIcon, Pill, Activity, Layers } from 'lucide-react';
 
 export default function QueueCalendar() {
-  const { bookings, language } = useApp();
+  const { bookings, language, currentUser, deleteBooking } = useApp();
   const t = i18n[language];
+
+  // Selected mode filter tab: 'All' | 'General' | 'Oncology'
+  const [calendarTab, setCalendarTab] = useState<'All' | 'General' | 'Oncology'>('All');
 
   // Selected date reference for month navigation
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -62,14 +66,89 @@ export default function QueueCalendar() {
     return `${yStr}-${mStr}-${dStr}`;
   };
 
+  // Calculate month-level booking counts for filter badges
+  const monthBookings = bookings.filter((b) => {
+    if (!b.dateOfUse) return false;
+    const parts = b.dateOfUse.split('-');
+    if (parts.length !== 3) return false;
+    const bYear = parseInt(parts[0], 10);
+    const bMonth = parseInt(parts[1], 10) - 1;
+    return bYear === year && bMonth === month;
+  });
+
+  const countAll = monthBookings.length;
+  const countGeneral = monthBookings.filter((b) => b.mode === 'General').length;
+  const countOncology = monthBookings.filter((b) => b.mode === 'Oncology').length;
+
   return (
     <div className="space-y-6">
+      {/* Category Tabs: คิวทั้งหมด / คิวยาทั่วไป / คิวยามะเร็ง */}
+      <div className="flex flex-wrap items-center gap-2 bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setCalendarTab('All')}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            calendarTab === 'All'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200/60'
+          }`}
+        >
+          <Layers className="w-4 h-4 shrink-0" />
+          <span>{language === 'TH' ? 'คิวทั้งหมด' : 'All Queues'}</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+            calendarTab === 'All' ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'
+          }`}>
+            {countAll}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setCalendarTab('General')}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            calendarTab === 'General'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'bg-blue-50/70 text-blue-700 hover:bg-blue-100/80 border border-blue-200/60'
+          }`}
+        >
+          <Pill className="w-4 h-4 shrink-0" />
+          <span>{language === 'TH' ? 'คิวยาทั่วไป' : 'General Meds Queue'}</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+            calendarTab === 'General' ? 'bg-blue-700 text-white' : 'bg-blue-100 text-blue-800'
+          }`}>
+            {countGeneral}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setCalendarTab('Oncology')}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            calendarTab === 'Oncology'
+              ? 'bg-red-600 text-white shadow-xs'
+              : 'bg-red-50/70 text-red-700 hover:bg-red-100/80 border border-red-200/60'
+          }`}
+        >
+          <Activity className="w-4 h-4 shrink-0" />
+          <span>{language === 'TH' ? 'คิวยามะเร็ง' : 'Oncology Meds Queue'}</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+            calendarTab === 'Oncology' ? 'bg-red-700 text-white' : 'bg-red-100 text-red-800'
+          }`}>
+            {countOncology}
+          </span>
+        </button>
+      </div>
+
       {/* Calendar Header Control Pane */}
       <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-sm font-bold text-slate-800 tracking-tight uppercase flex items-center gap-2">
             <CalIcon className="w-5 h-5 text-blue-600" />
-            {t.calTitle}
+            {calendarTab === 'General'
+              ? (language === 'TH' ? 'ปฏิทินคิวยาทั่วไป (General Meds)' : 'General Medication Queue Calendar')
+              : calendarTab === 'Oncology'
+              ? (language === 'TH' ? 'ปฏิทินคิวยามะเร็ง (Oncology Meds)' : 'Oncology Medication Queue Calendar')
+              : t.calTitle}
           </h2>
           <p className="text-[11px] text-slate-400 mt-0.5">{t.calSubtitle}</p>
         </div>
@@ -96,7 +175,7 @@ export default function QueueCalendar() {
 
       {/* Legend Information bar */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] uppercase font-bold bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-        <span className="text-slate-400">Class Keys:</span>
+        <span className="text-slate-400">{language === 'TH' ? 'ประเภทคิวยา:' : 'Class Keys:'}</span>
         <div className="flex items-center gap-1.5 font-sans">
           <span className="w-2 h-2 bg-blue-600 rounded"></span>
           <span className="text-blue-700">{t.calGenLegend}</span>
@@ -106,9 +185,9 @@ export default function QueueCalendar() {
           <span className="text-red-700">{t.calOncoLegend}</span>
         </div>
         <div className="flex items-center gap-1.5 ml-auto text-slate-400 font-semiboldNormal normal-case">
-          <span>⚠️ = Pending Stock</span>
+          <span>{language === 'TH' ? '⚠️ = รอยาพร้อมใช้' : '⚠️ = Pending Stock'}</span>
           <span>•</span>
-          <span>✅ = Stock Delivered & Available</span>
+          <span>{language === 'TH' ? '✅ = ยาพร้อมใช้งาน' : '✅ = Stock Delivered & Available'}</span>
         </div>
       </div>
 
@@ -137,8 +216,13 @@ export default function QueueCalendar() {
             }
 
             const dateStr = formatDateStr(dateObj);
-            // Query bookings allocated on this dateOfUse
-            const dayBookings = bookings.filter((b) => b.dateOfUse === dateStr);
+            // Query bookings allocated on this dateOfUse filtered by active tab
+            const dayBookings = bookings.filter((b) => {
+              if (b.dateOfUse !== dateStr) return false;
+              if (calendarTab === 'General') return b.mode === 'General';
+              if (calendarTab === 'Oncology') return b.mode === 'Oncology';
+              return true;
+            });
             const isToday = new Date().toDateString() === dateObj.toDateString();
 
             return (
@@ -268,10 +352,10 @@ export default function QueueCalendar() {
                 <table className="w-full text-xs text-left">
                   <thead>
                     <tr className="bg-neutral-50/50 text-neutral-400 font-semibold border-b border-offset border-neutral-100 text-[10px]">
-                      <th className="p-2">Item Description</th>
-                      <th className="p-2 text-center">Qty</th>
-                      <th className="p-2 text-right">Unit Price</th>
-                      <th className="p-2 text-right">Subtotal</th>
+                      <th className="p-2">{language === 'TH' ? 'รายการยา' : 'Item Description'}</th>
+                      <th className="p-2 text-center">{language === 'TH' ? 'จำนวน' : 'Qty'}</th>
+                      <th className="p-2 text-right">{language === 'TH' ? 'ราคา/หน่วย' : 'Unit Price'}</th>
+                      <th className="p-2 text-right">{language === 'TH' ? 'ราคารวม' : 'Subtotal'}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-100">
@@ -400,13 +484,79 @@ export default function QueueCalendar() {
             </div>
 
             {/* Model Action footer */}
-            <div className="p-4 bg-neutral-50 border-t border-neutral-100 flex justify-end">
+            <div className="p-4 bg-neutral-50 border-t border-neutral-100 flex justify-between items-center">
+              <div>
+                {currentUser?.role === 'Admin' && (
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>🗑️</span>
+                    <span>{language === 'TH' ? 'ลบรายการ (Admin)' : 'Delete Order (Admin)'}</span>
+                  </button>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={() => setSelectedBooking(null)}
                 className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
               >
                 Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Delete Confirmation Modal */}
+      {showDeleteConfirm && selectedBooking && (
+        <div className="fixed inset-0 bg-slate-900/55 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 transition-all animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-2xl max-w-md w-full flex flex-col overflow-hidden animate-scale-up">
+            <div className="p-5 bg-red-50 border-b border-red-100/60 flex items-center gap-3">
+              <span className="text-xl">🚨</span>
+              <div>
+                <h3 className="font-bold text-sm text-red-950 uppercase tracking-tight">
+                  {language === 'TH' ? 'ยืนยันลบข้อมูลการจองถาวร' : 'Confirm Clinical Delete'}
+                </h3>
+                <p className="text-[10px] text-red-600 font-medium mt-0.5 font-mono">
+                  HN: {selectedBooking.hn} | {selectedBooking.patientName}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-3 text-xs leading-relaxed text-slate-600 font-sans">
+              <p className="font-semibold text-rose-700 text-xs">
+                {language === 'TH'
+                  ? '⚠️ คำเตือน: การกระทำนี้เป็นการลบข้อมูลการจองอย่างถาวรและไม่สามารถเรียกคืนได้!'
+                  : '⚠️ Warning: This action is permanent and cannot be undone!'}
+              </p>
+              <p>
+                {language === 'TH'
+                  ? 'ประวัติคิวจองและรายการยาผู้ป่วยทั้งหมดจะถูกถอดถอนออกจากระบบหลักทันที'
+                  : 'This patient clinical medication queue will be permanently expunged from RxNexus logs.'}
+              </p>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-bold uppercase transition-all cursor-pointer"
+              >
+                {language === 'TH' ? 'ยกเลิก' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const id = selectedBooking.id;
+                  setShowDeleteConfirm(false);
+                  setSelectedBooking(null);
+                  await deleteBooking(id);
+                }}
+                className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold uppercase transition-all shadow-md hover:shadow-lg active:scale-95 duration-150 cursor-pointer"
+              >
+                {language === 'TH' ? 'ยืนยันลบถาวร' : 'Confirm Delete'}
               </button>
             </div>
           </div>

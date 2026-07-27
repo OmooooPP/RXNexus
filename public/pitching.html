@@ -105,6 +105,7 @@
                 <span class="hover:text-white cursor-pointer transition-colors" onclick="goToSlide(2)">ขั้นตอนการทำงาน</span>
                 <span class="hover:text-white cursor-pointer transition-colors" onclick="goToSlide(3)">ระบบยา HOLD</span>
                 <span class="hover:text-white cursor-pointer transition-colors" onclick="goToSlide(4)">ความคุ้มค่าทางการเงิน</span>
+                <span class="hover:text-white cursor-pointer transition-colors" onclick="goToSlide(5)">Lean Canvas & KPIs</span>
             </div>
 
             <div class="flex items-center gap-3">
@@ -569,13 +570,265 @@
                     <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i> ย้อนกลับ
                 </button>
                 <button onclick="nextSlide()" class="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs rounded-lg transition-all flex items-center gap-1 cursor-pointer shadow-lg shadow-amber-500/10">
+                    ดู Lean Canvas & KPIs <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+        </section>
+
+        <!-- Slide 6: RxNexus Lean Canvas & Quantitative KPIs -->
+        <section id="slide-5" class="slide w-full flex flex-col items-center gap-4 py-4">
+            <div class="text-center max-w-xl space-y-2">
+                <span class="text-xs bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full border border-amber-500/20 font-bold uppercase tracking-wider">Business Blueprint</span>
+                <h3 class="text-2xl font-black text-white">RxNexus Lean Canvas & Quantitative KPIs</h3>
+                <p class="text-xs text-slate-300">แผนผังธุรกิจนวัตกรรมและดัชนีชี้วัดเป้าหมายความคุ้มค่าทางการแพทย์เชิงลึก</p>
+            </div>
+            
+            <!-- Interactive Switcher Tab -->
+            <div class="flex gap-2 bg-slate-900/60 p-1 rounded-xl border border-slate-800 mb-2">
+                <button onclick="toggleCanvasTab('lean')" id="btn-tab-lean" class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-amber-500 text-slate-950 cursor-pointer">
+                    RxNexus Lean Canvas
+                </button>
+                <button onclick="toggleCanvasTab('kpis')" id="btn-tab-kpis" class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-white cursor-pointer">
+                    Quantitative KPIs (เป้าหมายเชิงตัวเลข)
+                </button>
+            </div>
+
+            <!-- TAB 1: Lean Canvas Grid -->
+            <div id="canvas-tab-lean-content" class="w-full max-w-6xl grid grid-cols-1 md:grid-cols-5 gap-3 text-left">
+                <!-- Col 1: Problem & Existing Alternatives -->
+                <div class="bg-slate-900/40 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+                    <div>
+                        <h4 class="text-xs font-black text-rose-450 uppercase tracking-wider mb-2 flex items-center gap-1">
+                            <i data-lucide="alert-circle" class="w-3.5 h-3.5 text-rose-450"></i> PROBLEM (ปัญหา)
+                        </h4>
+                        <ul class="text-[10.5px] text-slate-300 space-y-1.5 list-disc pl-3">
+                            <li>ระบบจองยาเก่าข้อมูลตกหล่นสูญหาย</li>
+                            <li>ล็อกอินผ่านอีเมลร่วมแผนก ไม่ปลอดภัย ต้องล็อกอินใหม่บ่อยครั้ง</li>
+                            <li>UX/UI เดิมใช้ยาก ต้องเลื่อนลงด้านล่างสุดเพื่อดูการสั่งยา</li>
+                            <li>ข้อมูลยาไม่อัปเดต ไม่มีเลข Stock Code และประเมินราคาล่วงหน้าไม่ได้</li>
+                            <li>ไม่มีระบบแจ้งเตือนคลังเมื่อได้ยาไม่ครบ ทำให้ต้องโทรตามเสียเวลา</li>
+                            <li>พยาบาลกด Hold ยาไม่ได้ เกิดการจองซ้ำซ้อนเพิ่มขยะคลังยา</li>
+                        </ul>
+                    </div>
+                    <div class="mt-3 pt-3 border-t border-slate-800">
+                        <h5 class="text-[10px] font-bold text-slate-450 mb-1">ทางเลือกปัจจุบัน (Alternatives):</h5>
+                        <p class="text-[10px] text-slate-400 italic leading-relaxed">
+                            สอนจองกันเอง, หากข้อมูลหายให้กรอกใหม่, จองแล้วต้องโทรแจ้งคลัง และเปิดตรวจโค้ดยาซ้ำไปซ้ำมา
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Col 2: Solution & High-Level Concept -->
+                <div class="bg-slate-900/40 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+                    <div>
+                        <h4 class="text-xs font-black text-emerald-450 uppercase tracking-wider mb-2 flex items-center gap-1">
+                            <i data-lucide="check-circle" class="w-3.5 h-3.5 text-emerald-450"></i> SOLUTION (แนวทางแก้ไข)
+                        </h4>
+                        <ul class="text-[10.5px] text-slate-300 space-y-1.5 list-disc pl-3">
+                            <li>เก็บข้อมูลบน Cloud แบบ Real-time ไม่สูญหาย</li>
+                            <li>ล็อกอินผ่านระบบความปลอดภัยรายบุคคล แยก Role ตามกลุ่มการใช้งาน</li>
+                            <li>ใบสั่งยาใหม่ขึ้นด้านบนสุด ไม่ต้องเลื่อนหา</li>
+                            <li>มีราคายาอัปเดต ออกเอกสารประเมินราคาก่อนรับยาได้</li>
+                            <li>แจ้งเตือนข้อผิดพลาด/ยาไม่ครบ ยิงตรงไปคลังยาทันที</li>
+                            <li>พยาบาลกด Hold ยา และแพทย์ควบคุมรักษาสิทธิ์ได้เด็ดขาด</li>
+                        </ul>
+                    </div>
+                    <div class="mt-3 pt-3 border-t border-slate-800">
+                        <h5 class="text-[10px] font-bold text-slate-450 mb-1">แนวคิดหลัก (High-Level):</h5>
+                        <p class="text-[10px] text-slate-400 italic leading-relaxed">
+                            ระบบรันคิวและแวริฟายยาที่สืบค้น ค้นหาประวัติค้างจ่าย (Owing list) และจัดสิทธิ์รัดกุม ใช้งานง่าย
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Col 3: Unique Value Proposition -->
+                <div class="bg-slate-900/40 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+                    <div>
+                        <h4 class="text-xs font-black text-amber-450 uppercase tracking-wider mb-2 flex items-center gap-1">
+                            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-450"></i> UNIQUE VALUE PROP
+                        </h4>
+                        <ul class="text-[10.5px] text-slate-300 space-y-1.5 list-disc pl-3 font-medium">
+                            <li>กรอกข้อมูลสะดวก รวดเร็วเสร็จในไม่กี่คลิก</li>
+                            <li>การจองและการรันสถานะยาอัปเดตทันทีแบบ Real-time</li>
+                            <li>ยืนยันตรวจสอบเคสยาพิเศษ (By Case Special Medication) แม่นยำ</li>
+                            <li>แดชบอร์ดซิงค์ตรงตาม Role ของบุคลากร</li>
+                            <li>ป้องกันข้อมูลหายด้วยสถาปัตยกรรม Firebase Cloud Storage</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Col 4: Unfair Advantage & Channels -->
+                <div class="bg-slate-900/40 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+                    <div>
+                        <h4 class="text-xs font-black text-indigo-405 uppercase tracking-wider mb-2 flex items-center gap-1">
+                            <i data-lucide="zap" class="w-3.5 h-3.5 text-indigo-400"></i> UNFAIR ADVANTAGE
+                        </h4>
+                        <ul class="text-[10.5px] text-slate-300 space-y-1.5 list-disc pl-3">
+                            <li>ระบบ Unified Dashboard แยกระบบตรวจติดตามยา Oncology ยารับสิทธิ์ทั่วไป และแท็บ Hold ยาแบบเรียลไทม์ในหนึ่งเดียว</li>
+                        </ul>
+                    </div>
+                    <div class="mt-3 pt-3 border-t border-slate-800">
+                        <h5 class="text-[10px] font-bold text-slate-400 mb-1">ช่องทางเข้าถึง (Channels):</h5>
+                        <ul class="text-[10px] text-slate-400 list-disc pl-3">
+                            <li>แผนกเภสัชกรรม (Pharmacy)</li>
+                            <li>แผนกวอร์ดเฉพาะทาง (Oncology, Neuroscience)</li>
+                            <li>คลังยา (Stock Clerk)</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Col 5: Customer Segments & Early Adopters -->
+                <div class="bg-slate-900/40 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+                    <div>
+                        <h4 class="text-xs font-black text-purple-450 uppercase tracking-wider mb-2 flex items-center gap-1">
+                            <i data-lucide="users" class="w-3.5 h-3.5 text-purple-400"></i> CUSTOMER SEGMENTS
+                        </h4>
+                        <ul class="text-[10.5px] text-slate-300 space-y-1.5 list-disc pl-3">
+                            <li>ผู้ป่วยโรคมะเร็งกลุ่ม Oncology</li>
+                            <li>ผู้ป่วยกลุ่ม "By Case Special Medication" ยาราคาสูง</li>
+                            <li>ผู้ป่วยที่ต้องการทราบการประเมินราคายาล่วงหน้าก่อนรับยา</li>
+                        </ul>
+                    </div>
+                    <div class="mt-3 pt-3 border-t border-slate-800">
+                        <h5 class="text-[10px] font-bold text-slate-400 mb-1">กลุ่มผู้ใช้แรก (Early Adopters):</h5>
+                        <p class="text-[10.5px] text-amber-400 font-extrabold flex items-center gap-0.5">
+                            <i data-lucide="map-pin" class="w-3 h-3"></i> โรงพยาบาลกรุงเทพพัทยา
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Cost Structure (Span 2) -->
+                <div class="md:col-span-2 bg-slate-950/80 p-3.5 rounded-xl border border-slate-800/80">
+                    <h4 class="text-xs font-black text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                        <i data-lucide="credit-card" class="w-3.5 h-3.5 text-slate-550"></i> COST STRUCTURE (โครงสร้างต้นทุน)
+                    </h4>
+                    <p class="text-[10.5px] text-slate-350 leading-relaxed">
+                        ค่าบริการเซิร์ฟเวอร์ระบบคลาวด์และพื้นที่เก็บข้อมูล (Hosting & Database Database Storage), ต้นทุนการพัฒนาซอฟต์แวร์ (Development Costs), ต้นทุนยาเคมีมะเร็งและกลุ่มยารักษาโรคราคาสูงเฉพาะราย
+                    </p>
+                </div>
+
+                <!-- Revenue Streams (Span 3) -->
+                <div class="md:col-span-3 bg-slate-950/80 p-3.5 rounded-xl border border-slate-800/80">
+                    <h4 class="text-xs font-black text-emerald-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                        <i data-lucide="wallet" class="w-3.5 h-3.5 text-emerald-450"></i> REVENUE STREAMS (ช่องทางรายได้)
+                    </h4>
+                    <p class="text-[10.5px] text-slate-350 leading-relaxed">
+                        รายได้จากการขายกลุ่มยาราคาสูงพิเศษ (High-cost special medicines), ยอดจัดสรรยาราคาสูงสำหรับผู้ป่วยเคสพิเศษในระบบ (By Case), รายได้จากผู้ป่วยกลุ่ม Oncology ที่พึงพอใจในความแม่นยำรวดเร็วและความปลอดภัยสูงสุดจนได้รับความเชื่อมั่น
+                    </p>
+                </div>
+            </div>
+
+            <!-- TAB 2: Quantitative KPIs -->
+            <div id="canvas-tab-kpis-content" class="hidden w-full max-w-5xl grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
+                <!-- KPI 1 -->
+                <div class="bg-gradient-to-br from-slate-900 to-slate-950 p-4 rounded-xl border border-emerald-500/20 shadow-lg flex flex-col justify-between relative group overflow-hidden">
+                    <div class="absolute -top-6 -right-6 w-16 h-16 bg-emerald-500/5 blur-xl rounded-full"></div>
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[10px] text-emerald-400 font-extrabold uppercase tracking-wider bg-emerald-500/10 px-2 py-0.5 rounded">Medication Compliance</span>
+                            <i data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i>
+                        </div>
+                        <h4 class="text-3xl font-black text-white font-mono mt-1">> 98.5%</h4>
+                        <p class="text-[11px] text-slate-200 font-bold mt-1.5">อัตราความสำเร็จจองยาเคสพิเศษ</p>
+                        <p class="text-[10.5px] text-slate-400 leading-relaxed mt-1">
+                            เดิมพยาบาลหลงลืมหรือระบบเก่าจองยาตกหล่น ระบบใหม่ช่วยเพิ่มการปฏิบัติตามระเบียบการจอง "By case special medication" เกือบสมบูรณ์แบบ
+                        </p>
+                    </div>
+                </div>
+
+                <!-- KPI 2 -->
+                <div class="bg-gradient-to-br from-slate-900 to-slate-950 p-4 rounded-xl border border-amber-500/20 shadow-lg flex flex-col justify-between relative group overflow-hidden">
+                    <div class="absolute -top-6 -right-6 w-16 h-16 bg-amber-500/5 blur-xl rounded-full"></div>
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[10px] text-amber-450 font-extrabold uppercase tracking-wider bg-amber-500/10 px-2 py-0.5 rounded">Late-Time Delay Reduction</span>
+                            <i data-lucide="zap" class="w-4 h-4 text-amber-400"></i>
+                        </div>
+                        <h4 class="text-3xl font-black text-white font-mono mt-1">< 5 นาที</h4>
+                        <p class="text-[11px] text-slate-200 font-bold mt-1.5">เวลาตามตัวยาจากคลังยา</p>
+                        <p class="text-[10.5px] text-slate-400 leading-relaxed mt-1">
+                            ลดลงจากเดิมที่ต้องโทรจี้ประสานงานตกค้างเฉลี่ยสะสม 1.5 ชม. ด้วยระบบแจ้งเตือนความผิดพลาดและยาไม่ครบส่งตรงไปคลังยาทันที
+                        </p>
+                    </div>
+                </div>
+
+                <!-- KPI 3 -->
+                <div class="bg-gradient-to-br from-slate-900 to-slate-950 p-4 rounded-xl border border-rose-500/20 shadow-lg flex flex-col justify-between relative group overflow-hidden">
+                    <div class="absolute -top-6 -right-6 w-16 h-16 bg-rose-500/5 blur-xl rounded-full"></div>
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[10px] text-rose-450 font-extrabold uppercase tracking-wider bg-rose-500/10 px-2 py-0.5 rounded">Medication Wastes</span>
+                            <i data-lucide="shield-alert" class="w-4 h-4 text-rose-400"></i>
+                        </div>
+                        <h4 class="text-3xl font-black text-white font-mono mt-1">- 90% ของเสีย</h4>
+                        <p class="text-[11px] text-slate-200 font-bold mt-1.5">ลดการสูญเสียเคมียาราคาสูง</p>
+                        <p class="text-[10.5px] text-slate-400 leading-relaxed mt-1">
+                            ลดมูลค่าขยะเวชภัณฑ์ที่ผสมเปล่าลงอย่างเห็นได้ชัด ด้วยฟังก์ชันควบคุมการ "Hold ยา" และ "Rollover" ได้อย่างทันท่วงทีหน้างาน
+                        </p>
+                    </div>
+                </div>
+
+                <!-- KPI 4 -->
+                <div class="bg-gradient-to-br from-slate-900 to-slate-950 p-4 rounded-xl border border-blue-500/20 shadow-lg flex flex-col justify-between relative group overflow-hidden">
+                    <div class="absolute -top-6 -right-6 w-16 h-16 bg-blue-500/5 blur-xl rounded-full"></div>
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[10px] text-blue-450 font-extrabold uppercase tracking-wider bg-blue-500/10 px-2 py-0.5 rounded">Owing Medication Audit</span>
+                            <i data-lucide="clock" class="w-4 h-4 text-blue-400"></i>
+                        </div>
+                        <h4 class="text-3xl font-black text-white font-mono mt-1">100% Tracking</h4>
+                        <p class="text-[11px] text-slate-200 font-bold mt-1.5">ระบบสืบค้นและค้างจ่ายยา</p>
+                        <p class="text-[10.5px] text-slate-400 leading-relaxed mt-1">
+                            ติดตามยอดค้างคลัง (Owing Drug List) ตรวจสอบและประสานเคลียร์ยอดค้างจ่ายยาส่งให้ผู้ป่วยต่อเนื่องได้รวดเร็ว ครบถ้วน
+                        </p>
+                    </div>
+                </div>
+
+                <!-- KPI 5 -->
+                <div class="bg-gradient-to-br from-slate-900 to-slate-950 p-4 rounded-xl border border-purple-500/20 shadow-lg flex flex-col justify-between relative group overflow-hidden">
+                    <div class="absolute -top-6 -right-6 w-16 h-16 bg-purple-500/5 blur-xl rounded-full"></div>
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[10px] text-purple-450 font-extrabold uppercase tracking-wider bg-purple-500/10 px-2 py-0.5 rounded">Dual Verification</span>
+                            <i data-lucide="sparkles" class="w-4 h-4 text-purple-400"></i>
+                        </div>
+                        <h4 class="text-3xl font-black text-white font-mono mt-1">เร็วขึ้น 60%</h4>
+                        <p class="text-[11px] text-slate-200 font-bold mt-1.5">ความเร็วบริหารจัดการและกรอกข้อมูล</p>
+                        <p class="text-[10.5px] text-slate-400 leading-relaxed mt-1">
+                            ลดสัดส่วนแบบฟอร์มคัดกรองส่วนเกิน จัดเรียงข้อมูลออเดอร์ใหม่ขึ้นด้านบนสุด ตรวจสอบ LAB และยืนยันผลแลกเปลี่ยนลื่นไหล
+                        </p>
+                    </div>
+                </div>
+
+                <!-- KPI 6 -->
+                <div class="bg-gradient-to-br from-slate-900 to-slate-950 p-4 rounded-xl border border-emerald-500/20 shadow-lg flex flex-col justify-between relative group overflow-hidden">
+                    <div class="absolute -top-6 -right-6 w-16 h-16 bg-emerald-500/5 blur-xl rounded-full"></div>
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[10px] text-emerald-450 font-extrabold uppercase tracking-wider bg-emerald-500/10 px-2 py-0.5 rounded">User Satisfaction Score</span>
+                            <i data-lucide="smile" class="w-4 h-4 text-emerald-450"></i>
+                        </div>
+                        <h4 class="text-3xl font-black text-white font-mono mt-1">4.9 / 5.0</h4>
+                        <p class="text-[11px] text-slate-200 font-bold mt-1.5">ความพึงพอใจการใช้หน้างานจริง</p>
+                        <p class="text-[10.5px] text-slate-400 leading-relaxed mt-1">
+                            วัดผลจากทีมพยาบาลวิชาชีพ เภสัชกรแวริฟาย และพนักงานคลังพัสดุในด้าน UX/UI ที่เป็นมิตร ใช้งานได้คล่องตัวและปลอดภัย
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex gap-3 justify-center mt-3">
+                <button onclick="prevSlide()" class="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg transition-all flex items-center gap-1.5 cursor-pointer">
+                    <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i> ย้อนกลับ
+                </button>
+                <button onclick="nextSlide()" class="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-lg shadow-amber-500/10">
                     สรุปวิสัยทัศน์ผู้บริหาร <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
                 </button>
             </div>
         </section>
 
-        <!-- Slide 6: Call to Action (Conclusion) -->
-        <section id="slide-5" class="slide w-full flex flex-col items-center gap-6 py-6 text-center">
+        <!-- Slide 7: Call to Action (Conclusion) -->
+        <section id="slide-6" class="slide w-full flex flex-col items-center gap-6 py-6 text-center">
             <div class="max-w-2xl space-y-4">
                 <span class="text-xs bg-amber-500/10 text-amber-400 px-3 py-1 bg-opacity-10 rounded-full border border-amber-500/30 font-bold uppercase tracking-wider block mx-auto w-fit">Visionary Conclusion</span>
                 <h3 class="text-4xl font-extrabold text-white leading-tight">ร่วมเป็นผู้นำองค์กรการแพทย์อัจฉริยะที่ใส่ใจ <br><span class="bg-gradient-to-r from-amber-400 to-emerald-400 bg-clip-text text-transparent">ความปลอดภัยและต้นทุนที่มีประสิทธิผล</span></h3>
@@ -624,6 +877,7 @@
                 <div class="dot w-2 h-2 bg-slate-800 rounded-full cursor-pointer" onclick="goToSlide(3)"></div>
                 <div class="dot w-2 h-2 bg-slate-800 rounded-full cursor-pointer" onclick="goToSlide(4)"></div>
                 <div class="dot w-2 h-2 bg-slate-800 rounded-full cursor-pointer" onclick="goToSlide(5)"></div>
+                <div class="dot w-2 h-2 bg-slate-800 rounded-full cursor-pointer" onclick="goToSlide(6)"></div>
             </div>
 
             <p class="text-[10px] text-slate-500 font-mono text-center">
@@ -635,7 +889,7 @@
     <!-- Interactive script behaviors -->
     <script>
         let currentSlideIdx = 0;
-        const totalSlides = 6;
+        const totalSlides = 7;
         
         function goToSlide(idx) {
             if (idx < 0 || idx >= totalSlides) return;
@@ -830,6 +1084,28 @@
             const wastePreventions = cancellations * cost * 0.90; // saving of wastes
 
             outputSavings.innerText = Math.round(wastePreventions).toLocaleString() + ' บาท/ปี';
+        }
+
+        // Toggle Lean Canvas Tab
+        function toggleCanvasTab(tab) {
+            const tabLean = document.getElementById('canvas-tab-lean-content');
+            const tabKpis = document.getElementById('canvas-tab-kpis-content');
+            const btnLean = document.getElementById('btn-tab-lean');
+            const btnKpis = document.getElementById('btn-tab-kpis');
+            
+            if (tab === 'lean') {
+                tabLean.classList.remove('hidden');
+                tabKpis.classList.add('hidden');
+                
+                btnLean.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-amber-500 text-slate-950 cursor-pointer";
+                btnKpis.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-white cursor-pointer";
+            } else {
+                tabLean.classList.add('hidden');
+                tabKpis.classList.remove('hidden');
+                
+                btnLean.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-white cursor-pointer";
+                btnKpis.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-amber-500 text-slate-950 cursor-pointer";
+            }
         }
 
         // Initial setup

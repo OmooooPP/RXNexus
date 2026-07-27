@@ -25,7 +25,8 @@ export default function UserAdminManager() {
     createUser,
     updateUser,
     deleteUser,
-    fetchUsers
+    fetchUsers,
+    spawnAlert
   } = useApp();
 
   const t = i18n[language];
@@ -167,8 +168,10 @@ export default function UserAdminManager() {
 
   const handleApproveUser = async (staff: User) => {
     const res = await updateUser(staff.id, { approved: true });
-    if (!res.success) {
-      alert(res.error || 'Failed to approve registration template credentials');
+    if (res.success) {
+      spawnAlert(language === 'TH' ? 'อนุมัติผู้ใช้งานเสร็จสิ้น' : 'Staff credential registration approved successfully!', 'success');
+    } else {
+      spawnAlert(res.error || 'Failed to approve registration template credentials', 'info');
     }
   };
 
@@ -806,8 +809,9 @@ export default function UserAdminManager() {
                   const res = await deleteUser(userToDelete.id);
                   if (res.success) {
                     setUserToDelete(null);
+                    spawnAlert(language === 'TH' ? 'ลบบัญชีผู้ใช้งานถาวรเรียบร้อยแล้ว' : 'Staff credential revoked and permanently deleted.', 'success');
                   } else {
-                    alert(res.error || 'Failed to revoke permissions');
+                    spawnAlert(res.error || 'Failed to revoke permissions', 'info');
                   }
                 }}
                 className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold uppercase transition-all shadow-md cursor-pointer hover:shadow-lg"
