@@ -46,12 +46,42 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
   const [isHtmlPrintActive, setIsHtmlPrintActive] = useState(!!singleBooking);
   // 'voucher' (staff) or 'receipt' (patient) - active when singleBooking is defined
   const [printType, setPrintType] = useState<'voucher' | 'receipt'>('voucher');
+  // Report scope: 'aggregate' (รวม) or 'patient' (ต่อคนไข้ 1 คน)
+  const [reportScope, setReportScope] = useState<'aggregate' | 'patient'>(singleBooking ? 'patient' : 'aggregate');
+  const [selectedPatientHn, setSelectedPatientHn] = useState<string>(singleBooking ? singleBooking.hn : '');
 
   const standardLocations = ['Phar IV', 'Phar A1', 'Phar E3', 'Phar E6', 'Phar D'];
   const uniqueLocations = Array.from(new Set([
     ...standardLocations,
     ...bookings.map(b => b.pharmacyLocation).filter(Boolean)
   ])) as string[];
+
+  const uniquePatients = React.useMemo(() => {
+    const map = new Map<string, { hn: string; patientName: string; count: number; department: string }>();
+    bookings.forEach(b => {
+      if (!map.has(b.hn)) {
+        map.set(b.hn, { hn: b.hn, patientName: b.patientName, count: 1, department: b.department });
+      } else {
+        const item = map.get(b.hn)!;
+        item.count += 1;
+      }
+    });
+    return Array.from(map.values());
+  }, [bookings]);
+
+  React.useEffect(() => {
+    if (reportScope === 'patient' && !selectedPatientHn && uniquePatients.length > 0) {
+      setSelectedPatientHn(uniquePatients[0].hn);
+    }
+  }, [reportScope, selectedPatientHn, uniquePatients]);
+
+  const targetPatientBookings = React.useMemo(() => {
+    if (singleBooking) return [singleBooking];
+    if (!selectedPatientHn) return [];
+    return bookings.filter(b => b.hn === selectedPatientHn);
+  }, [singleBooking, selectedPatientHn, bookings]);
+
+  const targetPatientPrimary = targetPatientBookings[0] || singleBooking;
 
   // If user is a Pharmacy Stock Clerk, enforce selecting a specific pharmacy location
   React.useEffect(() => {
@@ -180,7 +210,8 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
               top: 0 !important;
               width: 100% !important;
               max-width: 100% !important;
-              padding: 12mm 15mm !important;
+              box-sizing: border-box !important;
+              padding: 8mm 10mm !important;
               margin: 0 !important;
               border: none !important;
               box-shadow: none !important;
@@ -188,10 +219,17 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
               background: #ffffff !important;
             }
 
+            #printable-area table {
+              width: 100% !important;
+              max-width: 100% !important;
+            }
+
             .print-compact-table th, .print-compact-table td {
-              padding: 3px 5px !important;
+              padding: 3px 4px !important;
               font-size: 9px !important;
-              line-height: 1.15 !important;
+              line-height: 1.2 !important;
+              overflow-wrap: anywhere !important;
+              word-break: normal !important;
             }
           }
         `}</style>
@@ -202,11 +240,13 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
             <span className="flex h-3 w-3 rounded-full bg-emerald-500 animate-pulse"></span>
             <div>
               <p className="text-xs text-slate-800 font-black uppercase tracking-wide">
-                {isPatientReceipt
-                  ? (language === 'TH' ? 'ตัวอย่างใบเสร็จตรวจสอบยาคนไข้ (Patient Receipt)' : 'Patient Medication Receipt Preview')
-                  : isStaffVoucher
-                    ? (language === 'TH' ? 'ตัวอย่างใบเตรียมเครื่องมือเวชภัณฑ์แพทย์ (Staff Voucher)' : 'Staff Requisition Voucher Preview')
-                    : (language === 'TH' ? 'ตัวอย่างใบเบิกรายการสะสมรวมฝ่ายโลจิสติกส์' : 'Aggregate Requisition & Supply Bill')}
+                {reportScope === 'patient'
+                  ? (language === 'TH' ? `ตัวอย่างใบรายงานจองยาต่อคนไข้ (HN: ${targetPatientPrimary?.hn || '-'})` : `Patient Reservation Report (HN: ${targetPatientPrimary?.hn || '-'})`)
+                  : isPatientReceipt
+                    ? (language === 'TH' ? 'ตัวอย่างใบเสร็จตรวจสอบยาคนไข้ (Patient Receipt)' : 'Patient Medication Receipt Preview')
+                    : isStaffVoucher
+                      ? (language === 'TH' ? 'ตัวอย่างใบเตรียมเครื่องมือเวชภัณฑ์แพทย์ (Staff Voucher)' : 'Staff Requisition Voucher Preview')
+                      : (language === 'TH' ? 'ตัวอย่างใบเบิกรายการสะสมรวมฝ่ายโลจิสติกส์' : 'Aggregate Requisition & Supply Bill')}
               </p>
               <p className="text-[10px] text-slate-500 font-medium leading-none mt-1">
                 {language === 'TH'
@@ -217,28 +257,74 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Scope Switcher: Aggregate vs Per-Patient */}
+            <div className="flex bg-slate-200 p-1 rounded-lg border border-slate-300">
+              <button
+                type="button"
+                onClick={() => setReportScope('aggregate')}
+                className={`px-3 py-1.5 rounded-md text-[9.5px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                  reportScope === 'aggregate'
+                    ? 'bg-slate-800 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-800'
+                }`}
+              >
+                {language === 'TH' ? '📊 รายงานรวม' : '📊 Batch'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setReportScope('patient')}
+                className={`px-3 py-1.5 rounded-md text-[9.5px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                  reportScope === 'patient'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-800'
+                }`}
+              >
+                {language === 'TH' ? '👤 ต่อคนไข้ 1 คน' : '👤 Per Patient'}
+              </button>
+            </div>
+
+            {/* Per-Patient HN Selector */}
+            {reportScope === 'patient' && (
+              <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg px-2 py-1 shadow-3xs">
+                <span className="text-[9.5px] font-black text-slate-500 uppercase">HN:</span>
+                <select
+                  value={selectedPatientHn}
+                  onChange={(e) => setSelectedPatientHn(e.target.value)}
+                  className="bg-transparent text-xs font-bold text-blue-900 focus:outline-hidden cursor-pointer max-w-[190px]"
+                >
+                  {uniquePatients.map(p => (
+                    <option key={p.hn} value={p.hn}>
+                      {p.hn} - {p.patientName} ({p.department})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Conditional control switch for single bookings */}
-            {singleBooking && (
-              <div className="flex bg-slate-200 p-1 rounded-lg border border-slate-300 mr-2">
+            {singleBooking && reportScope === 'patient' && (
+              <div className="flex bg-slate-200 p-1 rounded-lg border border-slate-300">
                 <button
+                  type="button"
                   onClick={() => setPrintType('voucher')}
-                  className={`px-3 py-1.5 rounded-md text-[9.5px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                  className={`px-2.5 py-1.5 rounded-md text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                     printType === 'voucher'
                       ? 'bg-blue-600 text-white shadow-xs'
                       : 'text-slate-600 hover:text-slate-800'
                   }`}
                 >
-                  {language === 'TH' ? 'ใบเบิกเจ้าหน้าที่' : 'Staff Voucher'}
+                  Voucher
                 </button>
                 <button
+                  type="button"
                   onClick={() => setPrintType('receipt')}
-                  className={`px-3 py-1.5 rounded-md text-[9.5px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                  className={`px-2.5 py-1.5 rounded-md text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                     printType === 'receipt'
                       ? 'bg-amber-600 text-white shadow-xs'
                       : 'text-slate-600 hover:text-slate-800'
                   }`}
                 >
-                  {language === 'TH' ? 'ใบเสร็จรับคนไข้' : 'Patient Receipt'}
+                  Receipt
                 </button>
               </div>
             )}
@@ -266,7 +352,7 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
         {/* Paper Container sheet (Designed strictly for A4 format) */}
         <div
           id="printable-area"
-          className="w-[210mm] min-h-[297mm] bg-white text-slate-900 border border-slate-300 shadow-2xl p-8 sm:p-12 print:border-0 print:p-0 print:shadow-none flex flex-col justify-between"
+          className="w-full max-w-[210mm] min-h-[297mm] bg-white text-slate-900 border border-slate-300 shadow-2xl p-5 sm:p-8 box-border print:border-0 print:p-0 print:shadow-none flex flex-col justify-between font-sarabun shrink-0"
         >
           <div>
             {/* Elegant Header Letterhead */}
@@ -291,24 +377,213 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
 
             {/* Document Title Header */}
             <div className="text-center my-6">
-              <h2 className="text-sm font-black text-slate-900 tracking-tight uppercase leading-none">
-                {isPatientReceipt
-                  ? (language === 'TH' ? 'ใบรับยาเวชภัณฑ์สำรองผู้ป่วยนอก' : 'Outpatient Medication Receipt & Sourcing Summary')
-                  : isStaffVoucher
-                    ? (language === 'TH' ? 'ใบรายละเอียดเวชภัณฑ์' : 'Patient Medication Requisition Voucher')
-                    : (language === 'TH' ? 'ใบจัดเตรียมเวชภัณฑ์ค้างส่งและยอดสั่งซื้อสะสม' : 'Aggregate Sourcing Logistics & Supply Bill')}
+              <h2 className="text-base font-black text-slate-900 tracking-tight uppercase leading-none font-sarabun">
+                {reportScope === 'patient'
+                  ? (language === 'TH' ? 'ใบรายงานรายการจองยาแยกต่อคนไข้ (รายบุคคล)' : 'Individual Patient Medication Reservation Report')
+                  : isPatientReceipt
+                    ? (language === 'TH' ? 'ใบรับยาเวชภัณฑ์สำรองผู้ป่วยนอก' : 'Outpatient Medication Receipt & Sourcing Summary')
+                    : isStaffVoucher
+                      ? (language === 'TH' ? 'ใบรายละเอียดเวชภัณฑ์' : 'Patient Medication Requisition Voucher')
+                      : (language === 'TH' ? 'ใบจัดเตรียมเวชภัณฑ์ค้างส่งและยอดสั่งซื้อสะสม' : 'Aggregate Sourcing Logistics & Supply Bill')}
               </h2>
-              <p className="text-[9px] text-slate-400 uppercase tracking-widest font-semibold font-mono mt-1.5 leading-none">
-                {isPatientReceipt
-                  ? (language === 'TH' ? 'เอกสารมอบสิทธิ์ผู้ป่วยในการตรวจสอบรับ' : 'OFFICIAL PATIENT DISPENSARY RECEIPT')
-                  : isStaffVoucher
-                    ? (language === 'TH' ? '' : 'SYSTEM CLINIC INFRASTRUCTURE VOUCHER')
-                    : (language === 'TH' ? 'รายงานตรวจสอบยอดความต้องการคลังสรุปยอดรวม' : 'LEDGER REPORT — DETAILED INDIVIDUAL ALLOCATIONS')}
+              <p className="text-[9.5px] text-slate-400 uppercase tracking-widest font-semibold font-mono mt-1.5 leading-none">
+                {reportScope === 'patient'
+                  ? (language === 'TH' ? 'BANGKOK HOSPITAL PATTAYA • OFFICIAL PATIENT MEDICATION RECORD' : 'OFFICIAL PATIENT DISPENSARY RECORD')
+                  : isPatientReceipt
+                    ? (language === 'TH' ? 'เอกสารมอบสิทธิ์ผู้ป่วยในการตรวจสอบรับ' : 'OFFICIAL PATIENT DISPENSARY RECEIPT')
+                    : isStaffVoucher
+                      ? (language === 'TH' ? '' : 'SYSTEM CLINIC INFRASTRUCTURE VOUCHER')
+                      : (language === 'TH' ? 'รายงานตรวจสอบยอดความต้องการคลังสรุปยอดรวม' : 'LEDGER REPORT — DETAILED INDIVIDUAL ALLOCATIONS')}
               </p>
             </div>
 
-            {/* Layout 1 & 3: Staff Voucher or Bulk Sourcing Log */}
-            {isStaffVoucher && singleBooking && (
+            {/* Layout: Single Patient Booking Report (ต่อคนไข้ 1 คน ว่า HN นั้นมีจองยาอะไรไปบ้าง) */}
+            {reportScope === 'patient' && targetPatientPrimary && (
+              <div className="space-y-6">
+                {/* Patient Profile Demographics */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                  <div>
+                    <span className="text-slate-400 uppercase font-black tracking-wider text-[8px] block">HN</span>
+                    <span className="font-mono font-black text-blue-900 text-sm tracking-wide font-sarabun">{targetPatientPrimary.hn}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 uppercase font-black tracking-wider text-[8px] block">{t.patientName}</span>
+                    <span className="font-extrabold text-slate-800 text-sm">{targetPatientPrimary.patientName}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 uppercase font-black tracking-wider text-[8px] block">{t.dateOfUse}</span>
+                    <span className="font-bold text-slate-700 font-sarabun text-xs">{formatDateToDMY(targetPatientPrimary.dateOfUse)}</span>
+                    <span className="block text-[8px] text-slate-400 font-bold uppercase">{targetPatientPrimary.department}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-slate-400 uppercase font-black tracking-wider text-[8px] block">Prescribing Physician</span>
+                    <span className="font-black text-slate-900 text-xs font-sarabun">{targetPatientPrimary.staff?.doctor || '-'}</span>
+                    <span className="block text-[8px] text-slate-400 font-bold">{targetPatientPrimary.staff?.nurse ? `RN: ${targetPatientPrimary.staff.nurse}` : ''}</span>
+                  </div>
+                </div>
+
+                {/* Table of all medications for this patient HN */}
+                <div>
+                  <div className="flex justify-between items-center mb-2 pl-1 border-l-2 border-blue-900">
+                    <span className="text-[10px] text-slate-700 font-black uppercase tracking-wider">
+                      {language === 'TH' ? `รายการเวชภัณฑ์ยาที่สั่งจองสำหรับ HN: ${targetPatientPrimary.hn}` : `Prescribed Medications Itemization for HN: ${targetPatientPrimary.hn}`}
+                    </span>
+                    <span className="text-[9px] text-slate-400 font-bold">
+                      {targetPatientBookings.length} {language === 'TH' ? 'ใบสั่งจอง' : 'Orders linked'}
+                    </span>
+                  </div>
+                  <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-3xs">
+                    <table className="w-full table-fixed text-left text-xs border-collapse">
+                      <colgroup>
+                        <col className="w-[5%]" />
+                        <col className="w-[5%]" />
+                        <col className="w-[27%]" />
+                        <col className="w-[15%]" />
+                        <col className="w-[11%]" />
+                        <col className="w-[7%]" />
+                        <col className="w-[8%]" />
+                        <col className="w-[11%]" />
+                        <col className="w-[11%]" />
+                      </colgroup>
+                      <thead>
+                        <tr className="bg-slate-50 text-slate-550 font-black uppercase text-[8.5px] border-b border-slate-200">
+                          <th className="py-2 px-1 text-center">☐</th>
+                          <th className="py-2 px-1 text-center">#</th>
+                          <th className="py-2 px-2">Medication Name / ชื่อยา</th>
+                          <th className="py-2 px-1.5 text-center">Stock Code</th>
+                          <th className="py-2 px-1 text-center">Class</th>
+                          <th className="py-2 px-1 text-center">Type</th>
+                          <th className="py-2 px-1 text-center">Qty</th>
+                          <th className="py-2 px-1.5 text-right">Unit Price</th>
+                          <th className="py-2 px-2 text-right">Subtotal</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-101 text-slate-700 font-medium">
+                        {targetPatientBookings.flatMap((b) =>
+                          b.medications.map((item) => ({
+                            ...item,
+                            bookingMode: b.mode,
+                            bookingId: b.id,
+                            regimen: b.regimen,
+                            dateOfUse: b.dateOfUse
+                          }))
+                        ).map((item, idx) => (
+                          <tr key={idx} className="bg-white hover:bg-slate-50/20">
+                            <td className="py-2 px-1 text-center text-slate-400 font-sans text-sm">☐</td>
+                            <td className="py-2 px-1 text-center text-slate-400 font-sarabun text-[11px]">{idx + 1}</td>
+                            <td className="py-2 px-2 font-bold text-slate-900 text-xs break-words">
+                              {item.drugName}
+                              {item.regimen && (
+                                <span className="ml-1 px-1 py-0.2 bg-indigo-50 text-indigo-700 border border-indigo-150 rounded text-[8.5px] font-bold inline-block">
+                                  {item.regimen}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2 px-1.5 text-center text-slate-500 font-extrabold font-sarabun text-[10.5px] break-words">{item.stockCode}</td>
+                            <td className="py-2 px-1 text-center">
+                              <span className={`px-1 py-0.5 rounded text-[8px] font-black uppercase ${
+                                item.bookingMode === 'Oncology' ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-blue-50 text-blue-700 border border-blue-200'
+                              }`}>
+                                {item.bookingMode}
+                              </span>
+                            </td>
+                            <td className="py-2 px-1 text-center uppercase text-[9px] font-bold text-slate-500">{item.priceType || 'OPD'}</td>
+                            <td className="py-2 px-1 text-center font-black text-slate-900 text-sm font-sarabun">{item.quantity}</td>
+                            <td className="py-2 px-1.5 text-right font-bold text-slate-700 font-sarabun text-[11px]">฿{item.unitPrice.toLocaleString()}</td>
+                            <td className="py-2 px-2 text-right font-black text-slate-900 font-sarabun text-[11px]">฿{item.totalPrice.toLocaleString()}</td>
+                          </tr>
+                        ))}
+                        <tr className="bg-blue-50/20 font-bold border-t border-slate-200">
+                          <td colSpan={8} className="py-3 px-2 text-right uppercase text-[9px] text-slate-600 tracking-wider font-black">
+                            {language === 'TH' ? 'ยอดรวมมูลค่าเวชภัณฑ์ทั้งสิ้น:' : 'Total Amount Due:'}
+                          </td>
+                          <td className="py-3 px-2 text-right text-blue-900 text-sm font-black font-sarabun">
+                            ฿{targetPatientBookings.reduce((sum, b) => sum + b.totalAmount, 0).toLocaleString()}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Regimen, Clinical Notes & Borrow Information */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-sans">
+                  {(targetPatientPrimary.regimen || targetPatientPrimary.note) && (
+                    <div className="p-3 bg-indigo-50/40 border border-indigo-150 rounded-xl space-y-1.5">
+                      {targetPatientPrimary.regimen && (
+                        <div>
+                          <span className="text-indigo-600 font-black uppercase text-[8.5px] tracking-wider block">Treatment Regimen / สูตรการรักษา</span>
+                          <span className="font-extrabold text-indigo-950 bg-white border border-indigo-200 px-2 py-0.5 rounded inline-block text-[11px] font-sarabun">{targetPatientPrimary.regimen}</span>
+                        </div>
+                      )}
+                      {targetPatientPrimary.note && (
+                        <div>
+                          <span className="text-slate-500 font-black uppercase text-[8.5px] tracking-wider block">Special Instructions / บันทึกเพิ่มเติม</span>
+                          <p className="text-slate-800 font-medium text-[11px] whitespace-pre-wrap bg-white p-2 rounded border border-slate-200/60">{targetPatientPrimary.note}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Borrowed Medication notice if present */}
+                  {targetPatientPrimary.borrowInfo && targetPatientPrimary.borrowInfo.length > 0 && (
+                    <div className="p-3 bg-amber-50/80 border border-amber-250 rounded-xl space-y-1">
+                      <span className="font-black text-amber-900 uppercase text-[8.5px] tracking-wider block flex items-center gap-1">
+                        <span>🤝</span> {language === 'TH' ? 'รายการยืมยาจากคนไข้คนอื่น (Borrowed Meds Ledger)' : 'Borrowed Medication Record'}
+                      </span>
+                      {targetPatientPrimary.borrowInfo.map((bItem, idx) => (
+                        <div key={idx} className="bg-white/80 p-1.5 rounded border border-amber-200 text-[10.5px]">
+                          <span className="font-bold text-slate-800">• {bItem.borrowedDrugName} x{bItem.quantity}</span>
+                          <span className="text-slate-500 ml-1.5">ยืมมาจาก HN: <strong className="font-mono text-blue-700">{bItem.borrowedFromHn}</strong> ({bItem.borrowedFromPatientName || '-'})</span>
+                          <span className={`ml-2 px-1 rounded text-[8.5px] font-bold ${bItem.returned ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                            {bItem.returned ? 'คืนแล้ว' : 'รอจองคืน'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Clinical Verification Ledger */}
+                <div className="grid grid-cols-2 gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200 text-[10.5px] text-slate-600 font-sans">
+                  <div className="space-y-1">
+                    <p className="font-black text-slate-400 uppercase tracking-widest text-[8.5px]">Clinical Verification Status</p>
+                    <p>• Pharmacist Verify: <span className="font-extrabold text-emerald-700 uppercase">{targetPatientPrimary.pharmacistVerification?.status || 'Pending'}</span> ({targetPatientPrimary.pharmacistVerification?.verifiedBy || targetPatientPrimary.staff?.pharmacist || 'Pending'})</p>
+                    <p>• Stock / Logistics Arrival: <span className="font-extrabold text-blue-700 uppercase">{targetPatientPrimary.clerkVerification?.status || 'Pending'}</span> ({targetPatientPrimary.clerkVerification?.verifiedBy || 'Pending'})</p>
+                  </div>
+                  <div className="space-y-1 text-right">
+                    <p className="font-black text-slate-400 uppercase tracking-widest text-[8.5px]">Dispensation Destination</p>
+                    <p>• Pharmacy Room: <span className="font-bold text-slate-800">{targetPatientPrimary.pharmacyLocation || 'Phar IV'}</span></p>
+                    <p>• Department: <span className="font-bold text-slate-800">{targetPatientPrimary.department}</span></p>
+                  </div>
+                </div>
+
+                {/* Signatures */}
+                <div className="grid grid-cols-3 gap-6 text-center pt-6 border-t border-slate-200 text-xs text-slate-500 font-sans">
+                  <div>
+                    <div className="border-b border-slate-300 pb-1 mb-1 font-sarabun text-slate-800 font-bold min-h-[20px]">
+                      {targetPatientPrimary.staff?.doctor}
+                    </div>
+                    <span className="text-[9px] uppercase font-bold text-slate-400">Prescribing Physician (แพทย์)</span>
+                  </div>
+                  <div>
+                    <div className="border-b border-slate-300 pb-1 mb-1 font-sarabun text-slate-800 font-bold min-h-[20px]">
+                      {targetPatientPrimary.pharmacistVerification?.verifiedBy || targetPatientPrimary.staff?.pharmacist || ''}
+                    </div>
+                    <span className="text-[9px] uppercase font-bold text-slate-400">Reviewing Pharmacist (เภสัชกร)</span>
+                  </div>
+                  <div>
+                    <div className="border-b border-slate-300 pb-1 mb-1 font-sarabun text-slate-800 font-bold min-h-[20px]">
+                      {targetPatientPrimary.staff?.nurse || currentUser?.name || ''}
+                    </div>
+                    <span className="text-[9px] uppercase font-bold text-slate-400">Nurse / Receiving Officer (พยาบาล)</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Layout 1 & 2: Single Booking Staff Voucher / Patient Receipt if explicitly requested */}
+            {reportScope === 'patient' && singleBooking && isStaffVoucher && false && (
               <div className="space-y-6">
                 {/* General demo stats */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-lg bg-slate-50 border border-slate-200 text-[10px] sm:text-xs">
@@ -617,26 +892,35 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
                               📝 {language === 'TH' ? `สรุปยอดเบิกคลังสำรองคลังประจำ: ${displayLocLabel}` : `Sourcing Summary Totals: ${displayLocLabel}`}
                             </p>
                             <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
-                              <table className="w-full text-left border-collapse print-compact-table text-[10px]">
+                              <table className="w-full table-fixed text-left border-collapse print-compact-table text-[10px]">
+                                <colgroup>
+                                  <col className="w-[5%]" />
+                                  <col className="w-[48%]" />
+                                  <col className="w-[21%]" />
+                                  <col className="w-[13%]" />
+                                  <col className="w-[13%]" />
+                                </colgroup>
                                 <thead>
                                   <tr className="bg-slate-50 text-slate-550 font-bold uppercase text-[8px] border-b border-slate-200">
-                                    <th className="py-1 px-3">Medicine Description / รหัสเวชภัณฑ์</th>
-                                    <th className="py-1 px-3 text-center whitespace-nowrap">Stock Code / SKU</th>
-                                    <th className="py-1 px-3 text-center">Class / หมวดคิว</th>
-                                    <th className="py-1 px-3 text-right">Demand Quantity / รวมสุทธิ</th>
+                                    <th className="py-1 px-1.5 text-center">☐</th>
+                                    <th className="py-1 px-2">Medicine Description / รหัสเวชภัณฑ์</th>
+                                    <th className="py-1 px-2 text-center">Stock Code / SKU</th>
+                                    <th className="py-1 px-1.5 text-center">Class / หมวดคิว</th>
+                                    <th className="py-1 px-2 text-right">Demand Qty</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 text-slate-700">
                                   {locSummaryList.map((item, idx) => (
                                     <tr key={idx} className="bg-white">
-                                      <td className="py-1 px-3 font-semibold text-slate-900">{item.name}</td>
-                                      <td className="py-1 px-3 text-center text-slate-500 font-bold font-sarabun whitespace-nowrap text-xs">{item.sku}</td>
-                                      <td className="py-1 px-3 text-center">
-                                        <span className="px-1.5 bg-slate-100 text-slate-600 font-extrabold text-[8px] uppercase rounded border border-slate-200 leading-none">
+                                      <td className="py-1 px-1.5 text-center text-slate-400 font-sans text-xs">☐</td>
+                                      <td className="py-1 px-2 font-semibold text-slate-900 break-words">{item.name}</td>
+                                      <td className="py-1 px-2 text-center text-slate-500 font-bold font-sarabun text-[10.5px] break-words">{item.sku}</td>
+                                      <td className="py-1 px-1.5 text-center">
+                                        <span className="px-1 bg-slate-100 text-slate-600 font-extrabold text-[8px] uppercase rounded border border-slate-200 leading-none">
                                           {item.category}
                                         </span>
                                       </td>
-                                      <td className="py-1 px-3 text-right font-black text-indigo-900 text-sm font-sarabun">
+                                      <td className="py-1 px-2 text-right font-black text-indigo-900 text-sm font-sarabun">
                                         {item.qty}
                                       </td>
                                     </tr>
@@ -648,92 +932,104 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
                         )}
 
                         {/* Individual Patient Allocations for this room */}
-                        {currentUser?.role !== 'Pharmacy Stock Clerk' && (
-                          <div className="space-y-1.5 pl-1">
-                            <p className="text-[9.5px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-101 pb-1 font-sans">
-                              👥 {language === 'TH' ? `รายละเอียดคนไข้แยกรายบุคคลคลังประจำ: ${displayLocLabel}` : `Individual Patient Allocations: ${displayLocLabel}`}
-                            </p>
-                            <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
-                              <table className="w-full text-left border-collapse print-compact-table text-[10px]">
-                                <thead>
-                                  <tr className="bg-slate-50 text-slate-550 font-bold uppercase text-[8px] border-b border-slate-200">
-                                    <th className="py-1 px-2 text-center w-8 font-semibold">#</th>
-                                    <th className="py-1 px-2 text-center whitespace-nowrap min-w-[105px]">HN</th>
-                                    <th className="py-1 px-2.5">{language === 'TH' ? 'ชื่อผู้ป่วย' : 'Patient Name'}</th>
-                                    <th className="py-1 px-2 text-center font-bold whitespace-nowrap min-w-[85px]">{language === 'TH' ? 'วันที่ต้องใช้' : 'Date of Use'}</th>
-                                    <th className="py-1 px-2">{language === 'TH' ? 'ชื่อยาเวชภัณฑ์สำรอง' : 'Drug Name'}</th>
-                                    <th className="py-1 px-2 text-right">Qty</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 text-slate-700">
-                                  {locBookings.flatMap((b) => 
-                                    b.medications.map((m) => ({
-                                      hn: b.hn,
-                                      patientName: b.patientName,
-                                      dateOfUse: b.dateOfUse,
-                                      drugName: m.drugName,
-                                      stockCode: m.stockCode,
-                                      quantity: m.quantity,
-                                      regimen: b.regimen,
-                                      holdStatus: b.holdStatus,
-                                      rolloverStatus: b.rolloverStatus
-                                    }))
-                                  ).map((row, rIdx) => (
-                                    <tr key={rIdx} className="bg-white hover:bg-slate-50/10 font-medium">
-                                      <td className="py-1 px-2 text-center text-slate-400 font-sarabun font-semibold text-[9.5px]">{rIdx + 1}</td>
-                                      <td className="py-1 px-2 text-center font-bold text-slate-750 font-sarabun text-[10.5px] whitespace-nowrap min-w-[105px] tracking-wide">{row.hn}</td>
-                                      <td className="py-1 px-2.5 font-extrabold text-slate-950 text-[11.5px] break-words whitespace-normal break-all min-w-[120px] max-w-[160px]">
-                                        <span>{row.patientName}</span>
-                                        {row.holdStatus?.isHeld && (
-                                          <div className="mt-1 flex flex-col gap-0.5">
-                                            <span className="self-start px-1.5 py-0.2 bg-red-100 text-red-750 border border-red-200 rounded text-[8.5px] font-black whitespace-nowrap inline-flex items-center gap-1">
-                                              <span>Hold</span>
-                                              {(row.holdStatus.heldAt || (row.holdStatus as any).timestamp) && (
-                                                <span className="font-mono text-[7.5px] font-bold opacity-80 border-l border-red-300 pl-1">
-                                                  {formatTimestamp(row.holdStatus.heldAt || (row.holdStatus as any).timestamp)}
-                                                </span>
-                                              )}
-                                            </span>
-                                          </div>
-                                        )}
-                                        {row.rolloverStatus && (
-                                          <div className="mt-1 flex flex-col gap-0.5">
-                                            <span className="self-start px-1.5 py-0.2 bg-purple-100 text-purple-750 border border-purple-200 rounded text-[8.5px] font-black whitespace-nowrap inline-flex items-center gap-1">
-                                              <span>{language === 'TH' ? 'เปลี่ยนวัน' : 'Rollover'}</span>
-                                              {(row.rolloverStatus.rolledOverAt || (row.rolloverStatus as any).rolledOverAt) && (
-                                                <span className="font-mono text-[7.5px] font-bold opacity-80 border-l border-purple-300 pl-1">
-                                                  {formatTimestamp(row.rolloverStatus.rolledOverAt || (row.rolloverStatus as any).rolledOverAt)}
-                                                </span>
-                                              )}
-                                            </span>
-                                          </div>
-                                        )}
-                                      </td>
-                                      <td className="py-1 px-2 text-center text-slate-600 font-bold whitespace-nowrap font-sarabun text-[10px]">{formatDateToDMY(row.dateOfUse)}</td>
-                                      <td className="py-1 px-2 font-black text-slate-900 break-words whitespace-normal break-all min-w-[140px] max-w-[200px]">
-                                        {row.drugName}
-                                        {row.regimen && (
-                                          <span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-sm text-[9px] px-1 py-0.5 ml-1.5 whitespace-nowrap inline-block">
-                                            ({row.regimen})
+                        <div className="space-y-1.5 pl-0.5">
+                          <p className="text-[9.5px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-101 pb-1 font-sans">
+                            👥 {language === 'TH' ? `รายละเอียดคนไข้แยกรายบุคคลคลังประจำ: ${displayLocLabel}` : `Individual Patient Allocations: ${displayLocLabel}`}
+                          </p>
+                          <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
+                            <table className="w-full table-fixed text-left border-collapse print-compact-table text-[10px]">
+                              <colgroup>
+                                <col className="w-[4%]" />
+                                <col className="w-[4%]" />
+                                <col className="w-[13%]" />
+                                <col className="w-[18%]" />
+                                <col className="w-[11%]" />
+                                <col className="w-[26%]" />
+                                <col className="w-[16%]" />
+                                <col className="w-[8%]" />
+                              </colgroup>
+                              <thead>
+                                <tr className="bg-slate-50 text-slate-550 font-bold uppercase text-[8px] border-b border-slate-200">
+                                  <th className="py-1.5 px-1 text-center">☐</th>
+                                  <th className="py-1.5 px-1 text-center font-semibold">#</th>
+                                  <th className="py-1.5 px-1 text-center">HN</th>
+                                  <th className="py-1.5 px-1.5">{language === 'TH' ? 'ชื่อผู้ป่วย' : 'Patient Name'}</th>
+                                  <th className="py-1.5 px-1 text-center font-bold">{language === 'TH' ? 'วันที่ต้องใช้' : 'Date of Use'}</th>
+                                  <th className="py-1.5 px-1.5">{language === 'TH' ? 'ชื่อยาเวชภัณฑ์สำรอง' : 'Drug Name'}</th>
+                                  <th className="py-1.5 px-1 text-center">Stock Code</th>
+                                  <th className="py-1.5 px-1.5 text-right">Qty</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 text-slate-700">
+                                {locBookings.flatMap((b) => 
+                                  b.medications.map((m) => ({
+                                    hn: b.hn,
+                                    patientName: b.patientName,
+                                    dateOfUse: b.dateOfUse,
+                                    drugName: m.drugName,
+                                    stockCode: m.stockCode,
+                                    quantity: m.quantity,
+                                    regimen: b.regimen,
+                                    holdStatus: b.holdStatus,
+                                    rolloverStatus: b.rolloverStatus
+                                  }))
+                                ).map((row, rIdx) => (
+                                  <tr key={rIdx} className="bg-white hover:bg-slate-50/10 font-medium">
+                                    <td className="py-1.5 px-1 text-center text-slate-400 font-sans text-xs">☐</td>
+                                    <td className="py-1.5 px-1 text-center text-slate-400 font-sarabun font-semibold text-[9.5px]">{rIdx + 1}</td>
+                                    <td className="py-1.5 px-1 text-center font-bold text-slate-750 font-sarabun text-[9.5px] tracking-tight break-words">{row.hn}</td>
+                                    <td className="py-1.5 px-1.5 font-extrabold text-slate-950 text-[10.5px] break-words">
+                                      <span className="block leading-snug">{row.patientName}</span>
+                                      {row.holdStatus?.isHeld && (
+                                        <div className="mt-1 flex flex-col gap-0.5">
+                                          <span className="self-start px-1 py-0.2 bg-red-100 text-red-750 border border-red-200 rounded text-[8px] font-black inline-flex flex-wrap items-center gap-1">
+                                            <span>Hold</span>
+                                            {(row.holdStatus.heldAt || (row.holdStatus as any).timestamp) && (
+                                              <span className="font-mono text-[7px] font-bold opacity-80 border-l border-red-300 pl-1">
+                                                {formatTimestamp(row.holdStatus.heldAt || (row.holdStatus as any).timestamp)}
+                                              </span>
+                                            )}
                                           </span>
-                                        )}
-                                      </td>
-                                      <td className="py-1 px-2 text-right font-black text-blue-900 text-[13px] font-sarabun whitespace-nowrap">{row.quantity}</td>
-                                    </tr>
-                                  ))}
-                                  <tr className="bg-slate-50 font-bold border-t border-slate-200">
-                                    <td colSpan={5} className="py-1.5 px-3 text-right uppercase text-[8px] text-slate-500 tracking-wider font-sans whitespace-nowrap">
-                                      {language === 'TH' ? 'รวมยอดจัดสรรห้องนี้:' : 'Total Quantity For Location:'}
+                                        </div>
+                                      )}
+                                      {row.rolloverStatus && (
+                                        <div className="mt-1 flex flex-col gap-0.5">
+                                          <span className="self-start px-1 py-0.2 bg-purple-100 text-purple-750 border border-purple-200 rounded text-[8px] font-black inline-flex flex-wrap items-center gap-1">
+                                            <span>{language === 'TH' ? 'เปลี่ยนวัน' : 'Rollover'}</span>
+                                            {(row.rolloverStatus.rolledOverAt || (row.rolloverStatus as any).rolledOverAt) && (
+                                              <span className="font-mono text-[7px] font-bold opacity-80 border-l border-purple-300 pl-1">
+                                                {formatTimestamp(row.rolloverStatus.rolledOverAt || (row.rolloverStatus as any).rolledOverAt)}
+                                              </span>
+                                            )}
+                                          </span>
+                                        </div>
+                                      )}
                                     </td>
-                                    <td className="py-1.5 px-3 text-right font-black text-slate-900 text-sm font-sarabun whitespace-nowrap">
-                                      {locSummaryList.reduce((sum, item) => sum + item.qty, 0)}
+                                    <td className="py-1.5 px-1 text-center text-slate-600 font-bold font-sarabun text-[9.5px] whitespace-nowrap">{formatDateToDMY(row.dateOfUse)}</td>
+                                    <td className="py-1.5 px-1.5 font-black text-slate-900 text-[10.5px] leading-snug break-words">
+                                      <span>{row.drugName}</span>
+                                      {row.regimen && (
+                                        <span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-sm text-[8.5px] px-1 py-0.2 ml-1 whitespace-nowrap inline-block">
+                                          ({row.regimen})
+                                        </span>
+                                      )}
                                     </td>
+                                    <td className="py-1.5 px-1 text-center text-slate-500 font-bold font-sarabun text-[9.5px] break-all">{row.stockCode}</td>
+                                    <td className="py-1.5 px-1.5 text-right font-black text-blue-900 text-[13px] font-sarabun whitespace-nowrap">{row.quantity}</td>
                                   </tr>
-                                </tbody>
-                              </table>
-                            </div>
+                                ))}
+                                <tr className="bg-slate-50 font-bold border-t border-slate-200">
+                                  <td colSpan={7} className="py-1.5 px-2 text-right uppercase text-[8.5px] text-slate-500 tracking-wider font-sans">
+                                    {language === 'TH' ? 'รวมยอดจัดสรรห้องนี้:' : 'Total Quantity For Location:'}
+                                  </td>
+                                  <td className="py-1.5 px-1.5 text-right font-black text-slate-900 text-sm font-sarabun whitespace-nowrap">
+                                    {locSummaryList.reduce((sum, item) => sum + item.qty, 0)}
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
                           </div>
-                        )}
+                        </div>
                       </div>
                     );
                   });
@@ -913,7 +1209,50 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
           <p className="text-[11px] text-slate-450 mt-0.5">{t.reportsDashboard}</p>
         </div>
 
-        {activeBookings.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Scope switch on non-print page */}
+          <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setReportScope('aggregate')}
+              className={`px-3 py-1.5 rounded-md text-[10px] uppercase font-bold tracking-wider transition-all cursor-pointer ${
+                reportScope === 'aggregate'
+                  ? 'bg-slate-800 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {language === 'TH' ? '📊 รายงานรวม' : '📊 Batch Summary'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setReportScope('patient')}
+              className={`px-3 py-1.5 rounded-md text-[10px] uppercase font-bold tracking-wider transition-all cursor-pointer ${
+                reportScope === 'patient'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {language === 'TH' ? '👤 ต่อคนไข้ 1 คน' : '👤 Per Patient'}
+            </button>
+          </div>
+
+          {reportScope === 'patient' && (
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 shadow-3xs">
+              <span className="text-[10px] font-bold text-slate-500 uppercase">HN:</span>
+              <select
+                value={selectedPatientHn}
+                onChange={(e) => setSelectedPatientHn(e.target.value)}
+                className="bg-transparent text-xs font-bold text-blue-900 focus:outline-hidden cursor-pointer max-w-[200px]"
+              >
+                {uniquePatients.map(p => (
+                  <option key={p.hn} value={p.hn}>
+                    {p.hn} - {p.patientName}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <button
             id="print-bulk-report-btn"
             onClick={() => {
@@ -922,9 +1261,11 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
             className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold uppercase flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
           >
             <Printer className="w-4 h-4" />
-            {language === 'TH' ? 'ปริ้นใบรายงาน PDF' : 'Open HTML Print & PDF'}
+            {reportScope === 'patient'
+              ? (language === 'TH' ? 'พิมพ์รายงานคนไข้นี้ PDF' : 'Print Patient Report')
+              : (language === 'TH' ? 'พิมพ์รายงานรวม PDF' : 'Print Batch Report')}
           </button>
-        )}
+        </div>
       </div>
 
       {/* Grid Settings Filter Parameters */}
@@ -1114,97 +1455,99 @@ export default function ReportPrinter({ singleBooking, onClose }: { singleBookin
           )}
 
           {/* Detailed patient medication layout - as requested "หน้า report drug detail ให้ขึ้นเป็นรายชื่อคนไข้แยกราย-ยาที่ใช้ ด้วย" */}
-          {currentUser?.role !== 'Pharmacy Stock Clerk' && (
-            <div className="space-y-3 bg-slate-50/80 p-5 rounded-lg border border-slate-200">
-              <h3 className="font-bold text-[10px] uppercase tracking-wider text-slate-700 flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <FileText className="w-4 h-4 text-blue-500" />
-                  {language === 'TH' ? 'รายละเอียดจัดสรรยาจำเพาะเจาะจงรายคิวเวชภัณฑ์ (Report Drug Details)' : 'Report Drug Details (Individual Allocations)'}
-                </span>
-                <span className="text-[10px] text-slate-400 font-bold bg-white px-2 py-0.5 rounded border border-slate-200 font-mono">
-                  {activeBookings.flatMap(b => b.medications).length} lines
-                </span>
-              </h3>
+          <div className="space-y-3 bg-slate-50/80 p-5 rounded-lg border border-slate-200">
+            <h3 className="font-bold text-[10px] uppercase tracking-wider text-slate-700 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <FileText className="w-4 h-4 text-blue-500" />
+                {language === 'TH' ? 'รายละเอียดจัดสรรยาจำเพาะเจาะจงรายคิวเวชภัณฑ์ (Report Drug Details)' : 'Report Drug Details (Individual Allocations)'}
+              </span>
+              <span className="text-[10px] text-slate-400 font-bold bg-white px-2 py-0.5 rounded border border-slate-200 font-mono">
+                {activeBookings.flatMap(b => b.medications).length} lines
+              </span>
+            </h3>
 
-              <div className="overflow-x-auto border border-slate-200 bg-white rounded-lg">
-                <table className="w-full text-xs text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 text-slate-550 font-semibold uppercase tracking-wider text-[9px] border-b border-slate-200">
-                      <th className="p-3 text-center w-12">#</th>
-                      <th className="p-3">{language === 'TH' ? 'คนไข้ / รหัส HN' : 'Patient / HN'}</th>
-                      <th className="p-3 text-center whitespace-nowrap">{language === 'TH' ? 'วันที่ต้องใช้' : 'Date of Use'}</th>
-                      <th className="p-3">{language === 'TH' ? 'ชื่อยาเวชภัณฑ์สำรอง' : 'Drug Name'}</th>
-                      <th className="p-3 text-center whitespace-nowrap">{language === 'TH' ? 'ห้องยา' : 'Location'}</th>
-                      <th className="p-3 text-right">Qty</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-101 text-slate-700">
-                    {activeBookings.flatMap((b) => 
-                      b.medications.map((m) => ({
-                        hn: b.hn,
-                        patientName: b.patientName,
-                        dateOfUse: b.dateOfUse,
-                        pharmacyLocation: b.pharmacyLocation,
-                        drugName: m.drugName,
-                        stockCode: m.stockCode,
-                        quantity: m.quantity,
-                        regimen: b.regimen,
-                        holdStatus: b.holdStatus,
-                        rolloverStatus: b.rolloverStatus
-                      }))
-                    ).map((row, idx) => (
-                      <tr key={idx} className="font-medium hover:bg-slate-50/50 bg-white">
-                        <td className="p-3 text-center text-slate-400 font-sarabun font-semibold text-[11px]">{idx + 1}</td>
-                        <td className="p-3">
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-bold text-slate-900">{row.patientName}</span>
-                              {row.holdStatus?.isHeld && (
-                                <span className="px-1.5 py-0.5 bg-red-100 text-red-700 border border-red-200 rounded text-[9px] font-black whitespace-nowrap inline-flex items-center gap-1">
-                                  <span>Hold</span>
-                                  {(row.holdStatus.heldAt || (row.holdStatus as any).timestamp) && (
-                                    <span className="font-mono text-[8px] font-bold opacity-80 border-l border-red-300 pl-1">
-                                      {formatTimestamp(row.holdStatus.heldAt || (row.holdStatus as any).timestamp)}
-                                    </span>
-                                  )}
-                                </span>
-                              )}
-                              {row.rolloverStatus && (
-                                <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 border border-purple-200 rounded text-[9px] font-black whitespace-nowrap inline-flex items-center gap-1">
-                                  <span>{language === 'TH' ? 'เปลี่ยนวัน' : 'Rollover'}</span>
-                                  {(row.rolloverStatus.rolledOverAt || (row.rolloverStatus as any).rolledOverAt) && (
-                                    <span className="font-mono text-[8px] font-bold opacity-80 border-l border-purple-300 pl-1">
-                                      {formatTimestamp(row.rolloverStatus.rolledOverAt || (row.rolloverStatus as any).rolledOverAt)}
-                                    </span>
-                                  )}
-                                </span>
-                              )}
-                            </div>
+            <div className="overflow-x-auto border border-slate-200 bg-white rounded-lg">
+              <table className="w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-550 font-semibold uppercase tracking-wider text-[9px] border-b border-slate-200">
+                    <th className="p-3 text-center w-10">☐</th>
+                    <th className="p-3 text-center w-12">#</th>
+                    <th className="p-3">{language === 'TH' ? 'คนไข้ / รหัส HN' : 'Patient / HN'}</th>
+                    <th className="p-3 text-center whitespace-nowrap">{language === 'TH' ? 'วันที่ต้องใช้' : 'Date of Use'}</th>
+                    <th className="p-3">{language === 'TH' ? 'ชื่อยาเวชภัณฑ์สำรอง' : 'Drug Name'}</th>
+                    <th className="p-3 text-center whitespace-nowrap">Stock Code</th>
+                    <th className="p-3 text-center whitespace-nowrap">{language === 'TH' ? 'ห้องยา' : 'Location'}</th>
+                    <th className="p-3 text-right">Qty</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-101 text-slate-700">
+                  {activeBookings.flatMap((b) => 
+                    b.medications.map((m) => ({
+                      hn: b.hn,
+                      patientName: b.patientName,
+                      dateOfUse: b.dateOfUse,
+                      pharmacyLocation: b.pharmacyLocation,
+                      drugName: m.drugName,
+                      stockCode: m.stockCode,
+                      quantity: m.quantity,
+                      regimen: b.regimen,
+                      holdStatus: b.holdStatus,
+                      rolloverStatus: b.rolloverStatus
+                    }))
+                  ).map((row, idx) => (
+                    <tr key={idx} className="font-medium hover:bg-slate-50/50 bg-white">
+                      <td className="p-3 text-center text-slate-400 font-sans text-sm">☐</td>
+                      <td className="p-3 text-center text-slate-400 font-sarabun font-semibold text-[11px]">{idx + 1}</td>
+                      <td className="p-3">
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-slate-900">{row.patientName}</span>
+                            {row.holdStatus?.isHeld && (
+                              <span className="px-1.5 py-0.5 bg-red-100 text-red-700 border border-red-200 rounded text-[9px] font-black whitespace-nowrap inline-flex items-center gap-1">
+                                <span>Hold</span>
+                                {(row.holdStatus.heldAt || (row.holdStatus as any).timestamp) && (
+                                  <span className="font-mono text-[8px] font-bold opacity-80 border-l border-red-300 pl-1">
+                                    {formatTimestamp(row.holdStatus.heldAt || (row.holdStatus as any).timestamp)}
+                                  </span>
+                                )}
+                              </span>
+                            )}
+                            {row.rolloverStatus && (
+                              <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 border border-purple-200 rounded text-[9px] font-black whitespace-nowrap inline-flex items-center gap-1">
+                                <span>{language === 'TH' ? 'เปลี่ยนวัน' : 'Rollover'}</span>
+                                {(row.rolloverStatus.rolledOverAt || (row.rolloverStatus as any).rolledOverAt) && (
+                                  <span className="font-mono text-[8px] font-bold opacity-80 border-l border-purple-300 pl-1">
+                                    {formatTimestamp(row.rolloverStatus.rolledOverAt || (row.rolloverStatus as any).rolledOverAt)}
+                                  </span>
+                                )}
+                              </span>
+                            )}
                           </div>
-                          <span className="text-[10px] text-slate-450 block font-sarabun font-extrabold whitespace-nowrap">HN: {row.hn}</span>
-                        </td>
-                        <td className="p-3 text-center text-slate-600 font-bold whitespace-nowrap font-sarabun text-xs">{formatDateToDMY(row.dateOfUse)}</td>
-                        <td className="p-3 font-semibold text-slate-800">
-                          {row.drugName}
-                          {row.regimen && (
-                            <span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-sm text-[9px] px-1 py-0.5 ml-1.5 whitespace-nowrap inline-block">
-                              ({row.regimen})
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-3 text-center whitespace-nowrap">
-                          <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md font-bold text-[10px] border border-slate-200 font-sarabun uppercase">
-                            {row.pharmacyLocation || '-'}
+                        </div>
+                        <span className="text-[10px] text-slate-450 block font-sarabun font-extrabold whitespace-nowrap">HN: {row.hn}</span>
+                      </td>
+                      <td className="p-3 text-center text-slate-600 font-bold whitespace-nowrap font-sarabun text-xs">{formatDateToDMY(row.dateOfUse)}</td>
+                      <td className="p-3 font-semibold text-slate-800">
+                        {row.drugName}
+                        {row.regimen && (
+                          <span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-sm text-[9px] px-1 py-0.5 ml-1.5 whitespace-nowrap inline-block">
+                            ({row.regimen})
                           </span>
-                        </td>
-                        <td className="p-3 text-right font-black text-indigo-950 text-sm font-sarabun whitespace-nowrap">{row.quantity}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                        )}
+                      </td>
+                      <td className="p-3 text-center text-slate-500 font-bold font-sarabun whitespace-nowrap text-xs">{row.stockCode}</td>
+                      <td className="p-3 text-center whitespace-nowrap">
+                        <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md font-bold text-[10px] border border-slate-200 font-sarabun uppercase">
+                          {row.pharmacyLocation || '-'}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right font-black text-indigo-950 text-sm font-sarabun whitespace-nowrap">{row.quantity}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          )}
+          </div>
         </div>
       )}
     </div>

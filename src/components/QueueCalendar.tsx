@@ -342,6 +342,18 @@ export default function QueueCalendar() {
                   <p className="text-neutral-400 mb-0.5">{t.department}</p>
                   <p className="font-bold text-neutral-700">{selectedBooking.department}</p>
                 </div>
+                {selectedBooking.pharmacyLocation && (
+                  <div>
+                    <p className="text-neutral-400 mb-0.5">{language === 'TH' ? 'ห้องยาที่จ่ายยา' : 'Pharmacy Location'}</p>
+                    <p className="font-bold text-blue-700">{selectedBooking.pharmacyLocation}</p>
+                  </div>
+                )}
+                {selectedBooking.regimen && (
+                  <div>
+                    <p className="text-neutral-400 mb-0.5">{language === 'TH' ? 'สูตรการรักษา' : 'Regimen'}</p>
+                    <p className="font-bold text-indigo-700">{selectedBooking.regimen}</p>
+                  </div>
+                )}
               </div>
 
               {/* Medication Lists */}
@@ -353,6 +365,7 @@ export default function QueueCalendar() {
                   <thead>
                     <tr className="bg-neutral-50/50 text-neutral-400 font-semibold border-b border-offset border-neutral-100 text-[10px]">
                       <th className="p-2">{language === 'TH' ? 'รายการยา' : 'Item Description'}</th>
+                      <th className="p-2 text-center">Stock Code</th>
                       <th className="p-2 text-center">{language === 'TH' ? 'จำนวน' : 'Qty'}</th>
                       <th className="p-2 text-right">{language === 'TH' ? 'ราคา/หน่วย' : 'Unit Price'}</th>
                       <th className="p-2 text-right">{language === 'TH' ? 'ราคารวม' : 'Subtotal'}</th>
@@ -362,18 +375,28 @@ export default function QueueCalendar() {
                     {selectedBooking.medications.map((item, idx) => (
                       <tr key={idx} className="hover:bg-neutral-50/50 text-neutral-600">
                         <td className="p-2 font-medium">{item.drugName}</td>
+                        <td className="p-2 text-center font-mono text-[10px] text-neutral-500">{item.stockCode}</td>
                         <td className="p-2 text-center font-semibold">{item.quantity}</td>
                         <td className="p-2 text-right">฿{item.unitPrice.toLocaleString()}</td>
                         <td className="p-2 text-right font-bold text-neutral-800">฿{item.totalPrice.toLocaleString()}</td>
                       </tr>
                     ))}
                     <tr className="bg-neutral-50 text-neutral-700 font-bold">
-                      <td colSpan={3} className="p-2 text-right uppercase tracking-wider">{t.totalAmount}:</td>
+                      <td colSpan={4} className="p-2 text-right uppercase tracking-wider">{t.totalAmount}:</td>
                       <td className="p-2 text-right text-emerald-700">฿{selectedBooking.totalAmount.toLocaleString()}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
+
+              {selectedBooking.note && (
+                <div className="p-3 rounded-xl border border-amber-200 bg-amber-50/60 text-xs">
+                  <p className="text-[10px] uppercase font-bold text-amber-800 mb-1">
+                    {language === 'TH' ? 'หมายเหตุ / Note เพิ่มเติม' : 'Clinical Note'}
+                  </p>
+                  <p className="text-slate-700 whitespace-pre-wrap">{selectedBooking.note}</p>
+                </div>
+              )}
 
               {/* Verified signatures status */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-xl border border-neutral-100 bg-neutral-50">

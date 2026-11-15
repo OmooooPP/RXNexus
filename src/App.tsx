@@ -44,6 +44,7 @@ function DashboardLayout() {
     loading,
     clearAlerts,
     bookings,
+    drugs,
     owingMeds,
     users,
     fetchUsers,
@@ -75,8 +76,21 @@ function DashboardLayout() {
   // Calculate unprepared upcoming bookings for Stock Clerk / Admin notification triggers
   const todayStr = new Date().toISOString().split('T')[0];
 
+  const getDefaultTabForRole = (role?: UserRole) => {
+    return role === 'Nurse' ? 'booking' : 'dashboard';
+  };
+
   // Active UI Navigation Tab State
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'booking' | 'calendar' | 'stocks' | 'users' | 'reports' | 'logs' | 'owing' | 'maintenance' | 'estimation'>('booking');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'booking' | 'calendar' | 'stocks' | 'users' | 'reports' | 'logs' | 'owing' | 'maintenance' | 'estimation'>(() =>
+    getDefaultTabForRole(currentUser?.role)
+  );
+
+  // Sync default landing page whenever logged-in user changes (REQ-02)
+  useEffect(() => {
+    if (currentUser) {
+      setActiveTab(getDefaultTabForRole(currentUser.role));
+    }
+  }, [currentUser?.id, currentUser?.role]);
 
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
 
@@ -359,6 +373,7 @@ function DashboardLayout() {
               {(currentUser?.role === 'Pharmacist' ||
                 currentUser?.role === 'Pharmacist Assistant' ||
                 currentUser?.role === 'Pharmacy Stock Clerk' ||
+                currentUser?.role === 'Nurse' ||
                 currentUser?.role === 'Admin') && (
                 <button
                   onClick={() => setActiveTab('owing')}
@@ -444,7 +459,7 @@ function DashboardLayout() {
         </aside>
 
         {/* Modular Render Block Main view */}
-        <main className="flex-1 p-4 md:p-6 lg:max-w-[1280px] xl:max-w-[1440px] mx-auto w-full max-w-full overflow-x-hidden space-y-4 md:space-y-6">
+        <main className="flex-1 p-3 sm:p-5 lg:p-6 w-full max-w-7xl 2xl:max-w-[1600px] mx-auto min-w-0 space-y-4 md:space-y-6">
           {/* Clerk Actionable Unresolved Owings Banner */}
           {currentUser?.role === 'Pharmacy Stock Clerk' && owingMeds.some(om => !om.resolved) && (
             <div 
@@ -505,6 +520,37 @@ function DashboardLayout() {
             </div>
           )}
 
+          {/* Admin Pending Drug Edit / Delete Alert Banner (REQ-16) */}
+          {currentUser?.role === 'Admin' && drugs.some(d => d.editRequested || d.deleteRequested) && (
+            <div
+              id="pending-drug-edits-banner"
+              onClick={() => setActiveTab('stocks')}
+              className="bg-gradient-to-r from-sky-700 via-blue-700 to-indigo-700 border-2 border-blue-400 rounded-2xl p-4 sm:p-5 shadow-xl text-white cursor-pointer hover:shadow-2xl transition-all relative overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden"
+            >
+              <div className="flex items-start gap-3.5">
+                <div className="p-2.5 bg-white/20 rounded-xl shrink-0 text-xl font-bold">
+                  💊
+                </div>
+                <div>
+                  <h3 className="text-sm font-black tracking-wide uppercase">
+                    {language === 'TH' ? 'แจ้งเตือน Admin: เภสัชกรแก้ไขข้อมูลยาในระบบ!' : 'ALERT: PHARMACIST DRUG CATALOG MODIFICATIONS PENDING REVIEW'}
+                  </h3>
+                  <p className="text-xs text-blue-100 mt-1 font-semibold">
+                    {language === 'TH'
+                      ? `มีรายการยาขอแก้ไข/ลบจำนวน ${drugs.filter(d => d.editRequested || d.deleteRequested).length} รายการ รอ Admin ตรวจสอบและกดอนุมัติ`
+                      : `${drugs.filter(d => d.editRequested || d.deleteRequested).length} medication catalog change(s) pending Admin verification.`}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="bg-white text-blue-800 hover:bg-blue-50 text-[10px] font-black uppercase tracking-wider py-2 px-3.5 rounded-xl shrink-0 shadow-sm cursor-pointer self-end sm:self-center"
+              >
+                {language === 'TH' ? 'ตรวจสอบรายการยา' : 'REVIEW DRUG LIST'}
+              </button>
+            </div>
+          )}
+
           {activeTab === 'dashboard' && (
             <DataTable
               onEditClick={triggerEdit}
@@ -555,6 +601,7 @@ function DashboardLayout() {
           {activeTab === 'owing' && (currentUser?.role === 'Pharmacist' ||
             currentUser?.role === 'Pharmacist Assistant' ||
             currentUser?.role === 'Pharmacy Stock Clerk' ||
+            currentUser?.role === 'Nurse' ||
             currentUser?.role === 'Admin') && (
             <OwingMedPanel />
           )}
@@ -609,7 +656,7 @@ function DashboardLayout() {
           <span className="text-[9px] font-bold tracking-wider">{language === 'TH' ? 'ปฏิทิน' : 'Agenda'}</span>
         </button>
 
-        {(currentUser?.role === 'Pharmacist' || currentUser?.role === 'Pharmacist Assistant' || currentUser?.role === 'Pharmacy Stock Clerk' || currentUser?.role === 'Admin') && (
+        {(currentUser?.role === 'Pharmacist' || currentUser?.role === 'Pharmacist Assistant' || currentUser?.role === 'Pharmacy Stock Clerk' || currentUser?.role === 'Nurse' || currentUser?.role === 'Admin') && (
           <button
             onClick={() => setActiveTab('owing')}
             className={`flex-1 flex flex-col items-center justify-center space-y-1 relative ${

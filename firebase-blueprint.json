@@ -46,6 +46,7 @@
         "patientName": { "type": "string", "description": "Mr. or Mrs. patient full display name" },
         "dateOfUse": { "type": "string", "description": "Planned target date of clinical medication use" },
         "department": { "type": "string", "description": "Clinic ward or hospital unit department" },
+        "pharmacyLocation": { "type": "string", "description": "Target pharmacy dispensing room" },
         "mode": { "type": "string", "enum": ["General", "Oncology"], "description": "Booking class type" },
         "medications": { "type": "array" },
         "totalAmount": { "type": "number" },
@@ -104,6 +105,7 @@
         "bookingId": { "type": "string", "description": "Reference to the source Booking" },
         "patientName": { "type": "string" },
         "hn": { "type": "string" },
+        "pharmacyLocation": { "type": "string" },
         "medications": {
           "type": "array",
           "description": "List of drugs and preparation status"

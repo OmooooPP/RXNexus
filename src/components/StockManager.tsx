@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { i18n } from '../lib/i18n';
 import { Drug } from '../types';
-import { Plus, Trash, Edit2, Check, X, ShieldAlert, ArrowUpDown, Search } from 'lucide-react';
+import { Plus, Trash, Edit2, Check, X, ShieldAlert, ArrowUpDown, Search, ShieldCheck, RotateCcw, ZoomIn, ZoomOut, CheckCircle, Clock, Eye, AlertCircle, FileText } from 'lucide-react';
 
 export default function StockManager() {
   const {
     currentUser,
     drugs,
+    bookings,
     language,
     createDrug,
     updateDrug,
@@ -17,6 +18,7 @@ export default function StockManager() {
     requestEditDrug,
     approveEditDrug,
     rejectEditDrug,
+    stockReverifyOrder,
     spawnAlert
   } = useApp();
 
@@ -37,6 +39,16 @@ export default function StockManager() {
   // List Searching & Classification Filters
   const [listSearchQuery, setListSearchQuery] = useState('');
   const [listTypeFilter, setListTypeFilter] = useState<'All' | 'General' | 'Oncology'>('All');
+
+  // Stock Order Re-verification States
+  const [activeStockTab, setActiveStockTab] = useState<'catalog' | 'reverify'>('catalog');
+  const [activeAuditBooking, setActiveAuditBooking] = useState<any | null>(null);
+  const [auditNotes, setAuditNotes] = useState('');
+  const [auditInspector, setAuditInspector] = useState(currentUser?.name || '');
+  const [isAuditRejecting, setIsAuditRejecting] = useState(false);
+  const [auditRejectReason, setAuditRejectReason] = useState('');
+  const [auditZoom, setAuditZoom] = useState(1);
+  const [auditSearchQuery, setAuditSearchQuery] = useState('');
 
   // Form Fields
   const [name, setName] = useState('');
@@ -124,8 +136,43 @@ export default function StockManager() {
 
   return (
     <div className="space-y-6">
-      {/* Stock catalog introductory layout */}
-      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Top Subsystem Tabs */}
+      <div className="flex bg-slate-200/80 p-1 rounded-xl border border-slate-300 w-full sm:w-auto self-start flex-wrap gap-1">
+        <button
+          type="button"
+          onClick={() => setActiveStockTab('catalog')}
+          className={`px-4 py-2 font-bold text-xs uppercase tracking-wider rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+            activeStockTab === 'catalog'
+              ? 'bg-white text-slate-800 shadow-xs'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <span>📦</span>
+          <span>{t.stockCatalog}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveStockTab('reverify')}
+          className={`px-4 py-2 font-bold text-xs uppercase tracking-wider rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+            activeStockTab === 'reverify'
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <ShieldCheck className="w-4 h-4" />
+          <span>{language === 'TH' ? 'ทวนสอบ Order Verify (Stock Re-verify)' : 'Stock Order Re-verification'}</span>
+          {bookings.filter(b => !b.cancelStatus?.approved && b.stockVerification?.status !== 'Verified').length > 0 && (
+            <span className="px-1.5 py-0.2 bg-rose-500 text-white rounded-full text-[9px] font-black">
+              {bookings.filter(b => !b.cancelStatus?.approved && b.stockVerification?.status !== 'Verified').length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {activeStockTab === 'catalog' && (
+        <div className="space-y-6">
+          {/* Stock catalog introductory layout */}
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-sm font-bold text-slate-800 tracking-tight uppercase flex items-center gap-2">
             {t.stockCatalog}
@@ -780,6 +827,389 @@ export default function StockManager() {
               >
                 {language === 'TH' ? 'ยืนยันลบถาวร' : 'Confirm Delete'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      </div>
+      )}
+
+      {/* Stock Re-verification Queue Subsystem */}
+      {activeStockTab === 'reverify' && (
+        <div className="space-y-6 animate-fade-in font-sans">
+          {/* Re-verify Header */}
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-sm font-bold text-slate-800 tracking-tight uppercase flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-indigo-600" />
+                <span>{language === 'TH' ? 'Stock - ทวนสอบ Order Verify' : 'Stock Order Re-verification'}</span>
+              </h2>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                {language === 'TH'
+                  ? 'ทวนสอบความถูกต้องของเวชภัณฑ์ยา ยอดสต็อก และส่งข้อมูลกลับไปยังแดชบอร์ดนับเป็นการจองยามาใหม่'
+                  : 'Audit inventory fulfillment and re-verify orders to display actively on the clinical dashboard as newly verified.'}
+              </p>
+            </div>
+
+            <div className="relative w-full sm:w-72">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={auditSearchQuery}
+                onChange={(e) => setAuditSearchQuery(e.target.value)}
+                placeholder={language === 'TH' ? 'ค้นหาชื่อผู้ป่วย, HN, หรือยา...' : 'Search Patient, HN, Drug...'}
+                className="w-full bg-slate-50 border border-slate-200 pl-9 pr-3 py-2 rounded-lg text-xs font-semibold focus:outline-hidden focus:bg-white"
+              />
+            </div>
+          </div>
+
+          {/* Bookings Table for Stock Re-verification */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            {(() => {
+              const filteredAuditBookings = bookings.filter((b) => {
+                if (b.cancelStatus?.approved) return false;
+                if (!auditSearchQuery.trim()) return true;
+                const q = auditSearchQuery.toLowerCase();
+                return (
+                  b.patientName.toLowerCase().includes(q) ||
+                  b.hn.toLowerCase().includes(q) ||
+                  b.medications.some(m => m.drugName.toLowerCase().includes(q) || m.stockCode.toLowerCase().includes(q))
+                );
+              });
+
+              if (filteredAuditBookings.length === 0) {
+                return (
+                  <div className="p-12 text-center text-slate-400 space-y-2">
+                    <ShieldCheck className="w-12 h-12 mx-auto text-slate-300" />
+                    <p className="font-bold text-sm text-slate-600">
+                      {language === 'TH' ? 'ไม่พบรายการที่ต้องทวนสอบในขณะนี้' : 'No orders in re-verification queue'}
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      {language === 'TH' ? 'รายการจองใหม่ทั้งหมดจะแสดงที่นี่เพื่อทวนสอบสต็อก' : 'Active incoming bookings will appear here for stock review.'}
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                        <th className="p-3.5">HN / Patient Name</th>
+                        <th className="p-3.5">Date of Use</th>
+                        <th className="p-3.5">Department</th>
+                        <th className="p-3.5">Medications</th>
+                        <th className="p-3.5 text-center">Pharmacist Status</th>
+                        <th className="p-3.5 text-center">Stock Audit Status</th>
+                        <th className="p-3.5 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-700">
+                      {filteredAuditBookings.map((b) => (
+                        <tr key={b.id} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="p-3.5">
+                            <span className="font-bold text-slate-900 block text-[13px]">{b.patientName}</span>
+                            <span className="font-mono text-blue-700 font-bold text-[10.5px]">HN: {b.hn}</span>
+                          </td>
+                          <td className="p-3.5 whitespace-nowrap">
+                            <span className="font-semibold text-slate-800">{b.dateOfUse}</span>
+                          </td>
+                          <td className="p-3.5 font-medium text-slate-600">{b.department}</td>
+                          <td className="p-3.5 max-w-xs">
+                            <div className="space-y-1">
+                              {b.medications.map((m, mIdx) => (
+                                <div key={mIdx} className="flex justify-between text-[11px] bg-slate-50 px-2 py-0.5 rounded border border-slate-150">
+                                  <span className="font-medium text-slate-800 truncate max-w-[140px]">{m.drugName}</span>
+                                  <span className="font-mono font-bold text-indigo-700">x{m.quantity}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="p-3.5 text-center whitespace-nowrap">
+                            {b.pharmacistVerification?.status === 'Verified' ? (
+                              <span className="px-2 py-0.5 rounded-full text-[9.5px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                ✓ Verified
+                              </span>
+                            ) : b.pharmacistVerification?.status === 'Rejected' ? (
+                              <span className="px-2 py-0.5 rounded-full text-[9.5px] font-black bg-rose-50 text-rose-700 border border-rose-200">
+                                ✗ Not Approved
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[9.5px] font-black bg-amber-50 text-amber-700 border border-amber-200">
+                                ⏳ Pending Rx
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3.5 text-center whitespace-nowrap">
+                            {b.stockVerification?.status === 'Verified' ? (
+                              <div className="space-y-0.5">
+                                <span className="px-2 py-0.5 rounded-full text-[9.5px] font-black bg-emerald-50 text-emerald-800 border border-emerald-200 inline-block">
+                                  ✓ Re-verified
+                                </span>
+                                <span className="block text-[8.5px] text-slate-400 font-mono">
+                                  {b.stockVerification.verifiedBy}
+                                </span>
+                              </div>
+                            ) : b.stockVerification?.status === 'Rejected' ? (
+                              <span className="px-2 py-0.5 rounded-full text-[9.5px] font-black bg-rose-50 text-rose-700 border border-rose-200">
+                                ✗ Stock Issue
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[9.5px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200 animate-pulse">
+                                รอทวนสอบ
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3.5 text-center whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveAuditBooking(b);
+                                setAuditInspector(currentUser?.name || 'Stock Clerk');
+                                setAuditNotes(b.stockVerification?.notes || '');
+                                setIsAuditRejecting(false);
+                                setAuditRejectReason('');
+                                setAuditZoom(1);
+                              }}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1 cursor-pointer mx-auto ${
+                                b.stockVerification?.status === 'Verified'
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100'
+                                  : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                              }`}
+                            >
+                              <ShieldCheck className="w-3.5 h-3.5" />
+                              <span>{language === 'TH' ? 'ทวนสอบ Order' : 'Re-verify'}</span>
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* Side-by-Side Stock Re-verify Modal */}
+      {activeAuditBooking && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-fade-in font-sans overflow-y-auto">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-5xl w-full flex flex-col md:flex-row overflow-hidden max-h-[90vh]">
+            {/* Left: Scan Preview */}
+            <div className="flex-1 bg-slate-50 p-5 flex flex-col justify-between border-r border-slate-100 overflow-y-auto max-h-[45vh] md:max-h-none">
+              <div className="mb-3 flex justify-between items-center">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                  {language === 'TH' ? 'ภาพสแกนใบสั่งยา (STOCK AUDIT SCAN)' : 'PRESCRIPTION AUDIT SCAN'}
+                </span>
+                {activeAuditBooking.prescriptionImage && (
+                  <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-1 text-xs shadow-3xs">
+                    <button
+                      type="button"
+                      onClick={() => setAuditZoom((prev) => Math.max(0.5, prev - 0.25))}
+                      className="p-1 hover:bg-slate-100 rounded text-slate-600 cursor-pointer"
+                    >
+                      <ZoomOut className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="font-mono font-bold text-blue-600 min-w-[38px] text-center text-[10px]">
+                      {Math.round(auditZoom * 100)}%
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setAuditZoom((prev) => Math.min(4, prev + 0.25))}
+                      className="p-1 hover:bg-slate-100 rounded text-slate-600 cursor-pointer"
+                    >
+                      <ZoomIn className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex-1 flex items-center justify-center bg-white rounded-xl border border-slate-200/60 p-4 min-h-[250px] overflow-auto">
+                {activeAuditBooking.prescriptionImage ? (
+                  <img
+                    src={activeAuditBooking.prescriptionImage}
+                    alt="Prescription"
+                    className="max-h-[380px] w-auto object-contain rounded-lg transition-transform duration-150"
+                    style={{ transform: `scale(${auditZoom})` }}
+                  />
+                ) : (
+                  <div className="text-center p-8 text-slate-400 space-y-2">
+                    <FileText className="w-10 h-10 mx-auto text-slate-300" />
+                    <p className="text-xs font-bold text-slate-500">
+                      {language === 'TH' ? 'ไม่มีรูปภาพสแกนใบสั่งยา' : 'No prescription scan uploaded'}
+                    </p>
+                  </div>
+                )}
+              </div>
+              <div className="mt-3 text-center text-[10px] text-slate-400 font-mono">
+                Stock Re-verification Ledger Engine
+              </div>
+            </div>
+
+            {/* Right: Items Checklist & Actions */}
+            <div className="flex-1 p-5 md:p-6 flex flex-col justify-between overflow-y-auto max-h-[45vh] md:max-h-none space-y-4">
+              <div className="space-y-4">
+                <div className="border-b border-slate-150 pb-3">
+                  <h3 className="font-extrabold text-sm text-indigo-900 uppercase flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-indigo-600" />
+                    <span>{language === 'TH' ? 'Stock - ทวนสอบ Order Verify' : 'Stock Order Re-verification'}</span>
+                  </h3>
+                  <p className="text-[10.5px] text-slate-550 mt-1">
+                    {language === 'TH'
+                      ? 'ทวนสอบความถูกต้องของเวชภัณฑ์ยา ยอดสต็อก และส่งข้อมูลกลับไปยังแดชบอร์ดนับเป็นการจองยามาใหม่'
+                      : 'Audit inventory fulfillment and re-verify order to display actively on clinical dashboard.'}
+                  </p>
+                </div>
+
+                {/* Patient Profile */}
+                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-[9px] uppercase font-bold text-slate-400 block">Patient</span>
+                    <span className="font-bold text-slate-800">{activeAuditBooking.patientName}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] uppercase font-bold text-slate-400 block">HN</span>
+                    <span className="font-mono font-bold text-blue-700">{activeAuditBooking.hn}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] uppercase font-bold text-slate-400 block">Date of Use</span>
+                    <span className="font-semibold text-slate-700">{activeAuditBooking.dateOfUse}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] uppercase font-bold text-slate-400 block">Department</span>
+                    <span className="font-semibold text-slate-700">{activeAuditBooking.department}</span>
+                  </div>
+                </div>
+
+                {/* Medications List */}
+                <div className="space-y-1.5">
+                  <span className="text-[10px] uppercase font-extrabold tracking-wide text-slate-400 block">
+                    {language === 'TH' ? 'รายการเวชภัณฑ์ยาที่ต้องทวนสอบ' : 'ITEMS TO RE-VERIFY'}
+                  </span>
+                  <div className="border border-slate-200/60 rounded-xl overflow-hidden shadow-3xs">
+                    <table className="w-full text-left text-[11px] border-collapse bg-white">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-150 text-[9.5px] uppercase font-extrabold text-slate-500">
+                          <th className="p-2.5">Medication</th>
+                          <th className="p-2.5">Stock Code</th>
+                          <th className="p-2.5 text-center">Qty</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
+                        {activeAuditBooking.medications.map((m: any, idx: number) => (
+                          <tr key={idx} className="hover:bg-slate-50/50">
+                            <td className="p-2.5 font-bold text-slate-800">{m.drugName}</td>
+                            <td className="p-2.5 font-mono text-slate-500">{m.stockCode}</td>
+                            <td className="p-2.5 text-center font-bold text-blue-600">{m.quantity}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {isAuditRejecting ? (
+                  <div className="bg-rose-50 border border-rose-200 p-3 rounded-xl space-y-2">
+                    <label className="block text-[10px] font-bold text-rose-800 uppercase">
+                      {language === 'TH' ? 'ระบุสาเหตุที่ทวนสอบไม่ผ่าน *' : 'Specify Stock Issue Reason *'}
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={auditRejectReason}
+                      onChange={(e) => setAuditRejectReason(e.target.value)}
+                      placeholder="เช่น ยาในคลังไม่เพียงพอ / ล็อตยาหมดอายุ"
+                      className="w-full bg-white border border-rose-200 p-2 rounded-lg text-xs font-semibold focus:outline-hidden"
+                    />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="block text-[10px] uppercase font-extrabold tracking-wide text-slate-400 mb-1">
+                        {language === 'TH' ? 'ผู้ทวนสอบคลังยา *' : 'Stock Reviewer *'}
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={auditInspector}
+                        onChange={(e) => setAuditInspector(e.target.value)}
+                        placeholder="e.g. Stock Coordinator"
+                        className="w-full bg-slate-50 border border-slate-200 p-2 rounded-lg text-xs font-semibold focus:outline-hidden focus:border-indigo-500 focus:bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase font-extrabold tracking-wide text-slate-400 mb-1">
+                        {language === 'TH' ? 'บันทึกทวนสอบคลัง (Lot / Notes)' : 'Lot / Notes'}
+                      </label>
+                      <input
+                        type="text"
+                        value={auditNotes}
+                        onChange={(e) => setAuditNotes(e.target.value)}
+                        placeholder="e.g. Lot 2026-X Verified"
+                        className="w-full bg-slate-50 border border-slate-200 p-2 rounded-lg text-xs font-semibold focus:outline-hidden focus:border-indigo-500 focus:bg-white"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 justify-end pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setActiveAuditBooking(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold cursor-pointer"
+                >
+                  {language === 'TH' ? 'ปิดหน้าต่าง' : 'Close'}
+                </button>
+
+                {isAuditRejecting ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setIsAuditRejecting(false)}
+                      className="px-3 py-2 bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
+                    >
+                      {language === 'TH' ? 'ย้อนกลับ' : 'Back'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!auditRejectReason.trim()}
+                      onClick={async () => {
+                        const res = await stockReverifyOrder(activeAuditBooking.id, false, auditNotes, auditRejectReason);
+                        if (res.success) setActiveAuditBooking(null);
+                      }}
+                      className="px-4.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow-sm active:scale-95"
+                    >
+                      {language === 'TH' ? 'ยืนยันทวนสอบไม่ผ่าน' : 'Confirm Reject'}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setIsAuditRejecting(true)}
+                      className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-250 rounded-xl text-xs font-bold cursor-pointer"
+                    >
+                      {language === 'TH' ? 'ทวนสอบไม่ผ่าน' : 'Stock Issue'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!auditInspector.trim()}
+                      onClick={async () => {
+                        const res = await stockReverifyOrder(activeAuditBooking.id, true, auditNotes);
+                        if (res.success) setActiveAuditBooking(null);
+                      }}
+                      className="px-4.5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors flex items-center gap-1.5 shadow-sm active:scale-95 duration-150"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <span>{language === 'TH' ? 'ทวนสอบ Order สำเร็จ (Re-verify)' : 'Confirm Stock Re-verify'}</span>
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>

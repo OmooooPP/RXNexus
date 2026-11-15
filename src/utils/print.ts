@@ -48,17 +48,18 @@ export function printElementByNewWindow(elementId: string, pageTitle: string = '
               font-family: "THSarabun", "TH Sarabun New", "Sarabun", sans-serif;
               background-color: #ffffff;
               color: #1e293b;
-              margin: 0;
-              padding: 15mm 15mm 15mm 15mm !important;
+              margin: 0 !important;
+              padding: 0 !important;
               -webkit-print-color-adjust: exact !important;
               print-color-adjust: exact !important;
             }
             * {
               font-family: "THSarabun", "TH Sarabun New", "Sarabun", sans-serif !important;
+              box-sizing: border-box;
             }
             @page {
-              size: A4;
-              margin: 0 !important;
+              size: A4 portrait;
+              margin: 10mm;
             }
             .page-break {
               page-break-before: always;
@@ -68,20 +69,21 @@ export function printElementByNewWindow(elementId: string, pageTitle: string = '
             }
             /* Table aesthetic updates and ensuring no text wraps/overflows awkwardly */
             table {
-              width: 100%;
+              width: 100% !important;
+              max-width: 100% !important;
               border-collapse: collapse;
-              table-layout: auto;
             }
             th, td {
               border-bottom: 1px solid #e2e8f0;
-              word-break: break-word;
+              overflow-wrap: anywhere;
+              word-break: normal;
             }
             /* Neutralize fixed pixel/mm dimensions on outer wrappers when printing */
-            div[id="printable-area"], .w-\\[210mm\\] {
+            div[id="printable-area"], .w-\\[210mm\\], .max-w-\\[210mm\\] {
               width: 100% !important;
               max-width: 100% !important;
               min-width: 0 !important;
-              padding: 2mm 0 !important;
+              padding: 0 !important;
               margin: 0 !important;
               border: none !important;
               box-shadow: none !important;

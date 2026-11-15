@@ -57,11 +57,18 @@ export interface BookingStaff {
 }
 
 export interface Verification {
-  status: 'Pending' | 'Accepted' | 'Verified' | 'Ready-to-use';
+  status: 'Pending' | 'Accepted' | 'Verified' | 'Ready-to-use' | 'Rejected';
   verifiedBy: string;
   verifiedAt: string;
   orderedBy?: string;
   orderedAt?: string;
+  rejectionReason?: string;
+  rejectionNote?: string;
+  rejectedBy?: string;
+  rejectedAt?: string;
+  reverifyRequested?: boolean;
+  resubmittedAt?: string;
+  resubmittedBy?: string;
 }
 
 export interface BookingHoldStatus {
@@ -82,6 +89,42 @@ export interface BookingRolloverStatus {
   rolledOverAt: string;
   pharmacistAlertRead?: boolean;
   clerkAlertRead?: boolean;
+}
+
+export interface BookingCancelStatus {
+  isRequested: boolean;
+  reason: string;
+  requestedByName: string; // custom signature name (ไม่อิงตาม user)
+  requestedAt: string;
+  approved: boolean;
+  rejected?: boolean;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  reviewNote?: string;
+}
+
+export interface StockVerification {
+  status: 'Pending' | 'Verified' | 'Rejected';
+  verifiedBy?: string;
+  verifiedAt?: string;
+  notes?: string;
+  rejectionReason?: string;
+}
+
+export interface BorrowedMedicationInfo {
+  isBorrowed?: boolean;
+  borrowedFromHn: string;
+  borrowedFromPatientName?: string;
+  borrowedDrugId: string;
+  borrowedDrugName: string;
+  quantity: number;
+  borrowedByStaff?: string;
+  borrowedBy?: string;
+  borrowedAt: string;
+  returned: boolean;
+  returnBookingId?: string;
+  returnedAt?: string;
+  returnedBy?: string;
 }
 
 export interface Booking {
@@ -107,6 +150,9 @@ export interface Booking {
   createdAt: string;
   holdStatus?: BookingHoldStatus;
   rolloverStatus?: BookingRolloverStatus;
+  cancelStatus?: BookingCancelStatus;
+  stockVerification?: StockVerification;
+  borrowInfo?: BorrowedMedicationInfo[];
 }
 
 export interface SystemLog {
@@ -131,6 +177,7 @@ export interface OwingMedication {
   bookingId: string;
   patientName: string;
   hn: string;
+  pharmacyLocation?: string;
   medications: Array<{
     drugId: string;
     drugName: string;

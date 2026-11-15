@@ -10,6 +10,7 @@ export default function OwingMedPanel() {
     language,
     currentUser,
     toggleMedicineOwing,
+    toggleOwingResolved,
     updateBooking
   } = useApp();
 
@@ -27,6 +28,18 @@ export default function OwingMedPanel() {
 
   // Filter mode for display: Only list bookings with Owing medicines, or list All matching criteria
   const [owingFilterMode, setOwingFilterMode] = useState<'onlyOwing' | 'all' | 'onlyReady'>('onlyOwing');
+  const [locationFilter, setLocationFilter] = useState<string>('All');
+
+  const uniqueLocations = Array.from(
+    new Set([
+      'Phar IV',
+      'Phar A1',
+      'Phar E3',
+      'Phar E6',
+      'Phar D',
+      ...bookings.map((b) => (b.pharmacyLocation || '').trim()).filter(Boolean)
+    ])
+  );
 
   // Checkbox helpers for each drug
   const isDrugOwing = (bookingId: string, drugId: string): boolean => {
@@ -62,7 +75,11 @@ export default function OwingMedPanel() {
         b.patientName.toLowerCase().includes(hnQuery.toLowerCase())
       : true;
 
-    if (!matchesCategory || !matchesDate || !matchesHn) return false;
+    // 4. Filter by Pharmacy Location
+    const matchesLocation =
+      locationFilter === 'All' ? true : (b.pharmacyLocation || '').trim() === locationFilter;
+
+    if (!matchesCategory || !matchesDate || !matchesHn || !matchesLocation) return false;
 
     // 4. Filter by owing state
     const hasOwing = hasActiveOwingForBooking(b.id);
@@ -101,7 +118,7 @@ export default function OwingMedPanel() {
           </h3>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-xs">
           {/* 1. Classification Mode Selection */}
           <div>
             <label className="block text-slate-500 mb-1 font-bold uppercase text-[10px] tracking-wider">
@@ -186,6 +203,26 @@ export default function OwingMedPanel() {
               <option value="All">{language === 'TH' ? 'ยาทุกประเภท (Both Drug Classes)' : 'Both Drug Classes'}</option>
               <option value="General">{language === 'TH' ? 'ยากลุ่มทั่วไป (General Meds)' : 'General Medicines'}</option>
               <option value="Oncology">{language === 'TH' ? 'ยากลุ่มเฉพาะทางเคมีบำบัด (Oncology Line)' : 'Oncology Spec Lines'}</option>
+            </select>
+          </div>
+
+          {/* 3.5 Pharmacy Location Filter */}
+          <div>
+            <label className="block text-slate-500 mb-1 font-bold uppercase text-[10px] tracking-wider">
+              {language === 'TH' ? 'ห้องยา (Location)' : 'Pharmacy Location'}
+            </label>
+            <select
+              id="owing-location-filter"
+              value={locationFilter}
+              onChange={(e) => setLocationFilter(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold focus:outline-hidden cursor-pointer"
+            >
+              <option value="All">{language === 'TH' ? 'ทุกห้องยา (All)' : 'All Locations'}</option>
+              {uniqueLocations.map((loc) => (
+                <option key={loc} value={loc}>
+                  {loc}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -324,22 +361,41 @@ export default function OwingMedPanel() {
                       </span>
                     </div>
 
-                    {/* Highly prominent, beautiful toggle for general medicine received/prepared status */}
-                    {isStockClerkOrStaff && (
-                      <label className="flex items-center gap-2 cursor-pointer bg-amber-50/40 border border-amber-200 hover:border-amber-400 hover:bg-amber-50/80 px-3 py-1.5 rounded-xl transition-all select-none">
-                        <input
-                          type="checkbox"
-                          checked={b.medicineReceived === true}
-                          onChange={async (e) => {
-                            await updateBooking(b.id, { medicineReceived: e.target.checked });
+                    {/* Highly prominent, beautiful toggle for general medicine received/prepared status & Complete action */}
+                    <div className="flex flex-wrap items-center gap-2 justify-end">
+                      {isStockClerkOrStaff && (
+                        <label className="flex items-center gap-2 cursor-pointer bg-amber-50/40 border border-amber-200 hover:border-amber-400 hover:bg-amber-50/80 px-3 py-1.5 rounded-xl transition-all select-none">
+                          <input
+                            type="checkbox"
+                            checked={b.medicineReceived === true}
+                            onChange={async (e) => {
+                              await updateBooking(b.id, { medicineReceived: e.target.checked });
+                            }}
+                            className="rounded text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                          />
+                          <span className="text-[10px] font-black text-slate-750 uppercase tracking-wide">
+                            {language === 'TH' ? 'ยืนยันรับยาจากสต็อกพร้อมใช้งาน' : 'Received/Prepared from stock'}
+                          </span>
+                        </label>
+                      )}
+
+                      {hasOwing && (currentUser?.role === 'Pharmacist' || currentUser?.role === 'Pharmacist Assistant' || currentUser?.role === 'Nurse' || currentUser?.role === 'Admin') && (
+                        <button
+                          id={`complete-owing-${b.id}`}
+                          type="button"
+                          onClick={async () => {
+                            const oRecord = owingMeds?.find(om => om.bookingId === b.id);
+                            if (oRecord) {
+                              await toggleOwingResolved(oRecord.id, true);
+                            }
                           }}
-                          className="rounded text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
-                        />
-                        <span className="text-[10px] font-black text-slate-750 uppercase tracking-wide">
-                          {language === 'TH' ? 'ยืนยันรับยาจากสต็อกพร้อมใช้งาน' : 'Received/Prepared from stock'}
-                        </span>
-                      </label>
-                    )}
+                          className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
+                        >
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          <span>{language === 'TH' ? 'Complete (ได้รับยาครบแล้ว)' : 'Complete (Stop Stock Alert)'}</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
