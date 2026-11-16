@@ -891,6 +891,17 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
                               <Eye className="w-3.5 h-3.5" />
                               <span className="text-[10px] font-medium font-mono">Rx</span>
                             </button>
+                          ) : b.imageClearedAt ? (
+                            <span
+                              className="p-1 px-2 text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg font-medium cursor-help"
+                              title={
+                                language === 'TH'
+                                  ? `ล้างเฉพาะรูปเพื่อประหยัดพื้นที่เมื่อ ${new Date(b.imageClearedAt).toLocaleDateString('th-TH')} (ประวัติการจองอยู่ครบ)`
+                                  : `Image cleared on ${new Date(b.imageClearedAt).toLocaleDateString('en-US')} (record preserved)`
+                              }
+                            >
+                              {language === 'TH' ? 'ล้างรูปแล้ว' : 'Img Cleared'}
+                            </span>
                           ) : (
                             <span className="p-1 px-2 text-[10px] text-slate-300 bg-slate-50 rounded-lg cursor-not-allowed">
                               No Rx Image

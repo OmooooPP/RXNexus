@@ -50,7 +50,9 @@
         "mode": { "type": "string", "enum": ["General", "Oncology"], "description": "Booking class type" },
         "medications": { "type": "array" },
         "totalAmount": { "type": "number" },
-        "prescriptionImage": { "type": "string", "description": "Uploaded medical recipe slip (Base64)" },
+        "prescriptionImage": { "type": "string", "description": "Uploaded medical recipe slip (Firebase Storage URL or compressed Base64)" },
+        "imageClearedAt": { "type": "string", "description": "ISO timestamp when old image was cleared while keeping booking record" },
+        "imageClearedBy": { "type": "string", "description": "Admin who cleared the old image payload" },
         "staff": {
           "type": "object",
           "properties": {

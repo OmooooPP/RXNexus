@@ -140,7 +140,9 @@ export interface Booking {
   mode: 'General' | 'Oncology';
   medications: BookingMedication[];
   totalAmount: number;
-  prescriptionImage: string; // base64 string
+  prescriptionImage: string; // Firebase Storage URL or compressed JPEG base64
+  imageClearedAt?: string;
+  imageClearedBy?: string;
   regimen?: string;
   note?: string;
   staff: BookingStaff;

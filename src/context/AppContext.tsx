@@ -3,7 +3,7 @@ import { User, Drug, Booking, SystemLog, OwingMedication, formatDateToDMY } from
 import { db, auth, OperationType, handleFirestoreError } from '../lib/firebase';
 import { collection, doc, setDoc, getDocs, onSnapshot, query, orderBy, deleteDoc, updateDoc } from 'firebase/firestore';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { compressImage } from '../utils/imageCompressor';
+import { preparePrescriptionImageForSave, deletePrescriptionFromStorage, isStorageUrl } from '../utils/prescriptionStorage';
 
 interface Alert {
   id: string;
@@ -704,13 +704,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         bookingId = `RXN-${todayStr}-${String(nextSeq).padStart(3, '0')}`;
       }
 
-      let safeImage = b.prescriptionImage || '';
-      if (safeImage && safeImage.length > 400000) {
-        try {
-          safeImage = await compressImage(safeImage, 1000, 1000, 0.70);
-        } catch (err) {
-          console.error('Failed to compress image in createBooking:', err);
-        }
+      let safeImage = '';
+      if (b.prescriptionImage) {
+        const imgResult = await preparePrescriptionImageForSave(b.prescriptionImage, bookingId);
+        safeImage = imgResult.value;
       }
 
       const newBooking: Booking = {
@@ -828,16 +825,22 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       if (b.medications) updateData.medications = b.medications;
       if (b.totalAmount !== undefined) updateData.totalAmount = b.totalAmount;
       if (b.prescriptionImage !== undefined) {
-        let safeImage = b.prescriptionImage;
-        if (safeImage && safeImage.length > 400000) {
-          try {
-            safeImage = await compressImage(safeImage, 1000, 1000, 0.70);
-          } catch (err) {
-            console.error('Failed to compress image in updateBooking:', err);
+        if (b.prescriptionImage === '') {
+          if (isStorageUrl(existing?.prescriptionImage)) {
+            await deletePrescriptionFromStorage(existing?.prescriptionImage);
           }
+          updateData.prescriptionImage = '';
+        } else if (b.prescriptionImage !== existing?.prescriptionImage) {
+          const imgResult = await preparePrescriptionImageForSave(b.prescriptionImage, id);
+          updateData.prescriptionImage = imgResult.value;
+          updateData.imageClearedAt = '';
+          updateData.imageClearedBy = '';
+        } else {
+          updateData.prescriptionImage = b.prescriptionImage;
         }
-        updateData.prescriptionImage = safeImage;
       }
+      if (b.imageClearedAt !== undefined) updateData.imageClearedAt = b.imageClearedAt;
+      if (b.imageClearedBy !== undefined) updateData.imageClearedBy = b.imageClearedBy;
       if (b.medicineReceived !== undefined) updateData.medicineReceived = b.medicineReceived;
       if (b.pdfPrinted !== undefined) updateData.pdfPrinted = b.pdfPrinted;
       if (b.stickerPrinted !== undefined) updateData.stickerPrinted = b.stickerPrinted;
@@ -953,6 +956,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const deleteBooking = async (id: string) => {
     setLoading(true);
     try {
+      const existing = bookings.find((x) => x.id === id);
+      if (existing?.prescriptionImage && isStorageUrl(existing.prescriptionImage)) {
+        await deletePrescriptionFromStorage(existing.prescriptionImage);
+      }
       await deleteDoc(doc(db, 'bookings', id));
 
       const logId = 'log-' + Date.now();
