@@ -689,7 +689,7 @@ function DashboardLayout() {
       {/* Minimalist credit line at the absolute bottom of DashboardLayout */}
       <footer className="py-2.5 text-center border-t border-slate-200/60 bg-white/40 print:hidden shrink-0 hidden md:block">
         <p className="text-[10px] text-slate-400 font-medium tracking-wide">
-          Powered By <span className="font-semibold text-slate-500">Preeyapat.P (Pharmacist)</span>
+          Powered By <span className="font-semibold text-slate-500">Preeyapat P. (Pharmacist)</span>
         </p>
       </footer>
     </div>

@@ -45,7 +45,7 @@ interface AppContextType {
   rejectCancelBooking: (id: string, reviewNote?: string) => Promise<{ success: boolean; error?: string }>;
   stockReverifyOrder: (id: string, approved: boolean, notes?: string, rejectionReason?: string) => Promise<{ success: boolean; error?: string }>;
   markBorrowedMedReturned: (bookingId: string, borrowedIndex: number, returnBookingId?: string) => Promise<void>;
-  verifyClerk: (id: string) => Promise<boolean>;
+  verifyClerk: (id: string, operatorName?: string, notes?: string) => Promise<boolean>;
   createDrug: (d: Partial<Drug>) => Promise<{ success: boolean; error?: string }>;
   updateDrug: (id: string, d: Partial<Drug>) => Promise<{ success: boolean; error?: string }>;
   deleteDrug: (id: string) => Promise<{ success: boolean; error?: string }>;
@@ -899,7 +899,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           verifiedBy: b.clerkVerification.verifiedBy !== undefined ? b.clerkVerification.verifiedBy : (currentCV.verifiedBy || ''),
           verifiedAt: b.clerkVerification.verifiedAt !== undefined ? b.clerkVerification.verifiedAt : (currentCV.verifiedAt || ''),
           orderedBy: b.clerkVerification.orderedBy !== undefined ? b.clerkVerification.orderedBy : (currentCV.orderedBy || ''),
-          orderedAt: b.clerkVerification.orderedAt !== undefined ? b.clerkVerification.orderedAt : (currentCV.orderedAt || '')
+          orderedAt: b.clerkVerification.orderedAt !== undefined ? b.clerkVerification.orderedAt : (currentCV.orderedAt || ''),
+          ...(b.clerkVerification.orderNote !== undefined || currentCV.orderNote ? { orderNote: b.clerkVerification.orderNote !== undefined ? b.clerkVerification.orderNote : currentCV.orderNote } : {}),
+          ...(b.clerkVerification.arrivalNote !== undefined || currentCV.arrivalNote ? { arrivalNote: b.clerkVerification.arrivalNote !== undefined ? b.clerkVerification.arrivalNote : currentCV.arrivalNote } : {})
         };
       } else {
         if (existing?.clerkVerification) updateData.clerkVerification = existing.clerkVerification;
@@ -1310,7 +1312,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const verifyClerk = async (id: string) => {
+  const verifyClerk = async (id: string, operatorName?: string, notes?: string) => {
     setLoading(true);
     try {
       const booking = bookings.find((b) => b.id === id);
@@ -1329,28 +1331,33 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         orderedAt: ''
       };
 
-      const nextClerkVerification = { ...baseClerk };
+      const nextClerkVerification: any = { ...baseClerk };
+      const actor = operatorName?.trim() || currentUser?.name || 'Pharmacy Stock Clerk';
+      const nowIso = new Date().toISOString();
+      const noteClean = notes?.trim() || '';
       let actionDetails = '';
       let successMsg = '';
       let actionName = 'Stock Delivered';
 
       if (currentClerkStatus === 'Pending') {
         nextClerkVerification.status = 'Accepted';
-        nextClerkVerification.orderedBy = currentUser?.name || 'Pharmacy Stock Clerk';
-        nextClerkVerification.orderedAt = new Date().toISOString();
-        actionDetails = `Received order and initiated vendor purchase request for booking ${id}.`;
+        nextClerkVerification.orderedBy = actor;
+        nextClerkVerification.orderedAt = nowIso;
+        if (noteClean) nextClerkVerification.orderNote = noteClean;
+        actionDetails = `Confirmed Step 1 (Purchase Order) for booking ${id} by ${actor} at ${nowIso}.${noteClean ? ` Note: ${noteClean}` : ''}`;
         successMsg = language === 'TH'
-          ? `รับคำสั่งจองยา ${id} และเริ่มทำการจัดซื้อเรียบร้อยแล้ว!`
-          : `Received order for ${id}! Initiated purchase with vendor.`;
+          ? `ยืนยันการสั่งซื้อยา ${id} เรียบร้อยแล้ว (โดย ${actor})`
+          : `Confirmed purchase order for ${id} (by ${actor})!`;
         actionName = 'Clerk Order Initiated';
       } else if (currentClerkStatus === 'Accepted') {
         nextClerkVerification.status = 'Ready-to-use';
-        nextClerkVerification.verifiedBy = currentUser?.name || 'Pharmacy Stock Clerk';
-        nextClerkVerification.verifiedAt = new Date().toISOString();
-        actionDetails = `Confirmed supply arrived and marked reservation ${id} as ready-to-use.`;
+        nextClerkVerification.verifiedBy = actor;
+        nextClerkVerification.verifiedAt = nowIso;
+        if (noteClean) nextClerkVerification.arrivalNote = noteClean;
+        actionDetails = `Confirmed Step 2 (Stock Arrived) for booking ${id} by ${actor} at ${nowIso}.${noteClean ? ` Note: ${noteClean}` : ''}`;
         successMsg = language === 'TH'
-          ? `ยืนยันยาพร้อมใช้งานสำหรับการจอง ${id} เรียบร้อย!`
-          : `Confirmed arrival for ${id}! Ready to use.`;
+          ? `ยืนยันของมาถึงสำหรับ ${id} เรียบร้อยแล้ว (โดย ${actor})`
+          : `Confirmed stock arrival for ${id} (by ${actor})!`;
         actionName = 'Stock Delivered';
       } else {
         return true;
@@ -1363,16 +1370,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const logId = 'log-' + Date.now();
       const newLog: SystemLog = {
         id: logId,
-        timestamp: new Date().toISOString(),
+        timestamp: nowIso,
         userId: currentUser?.id || 'clerk',
-        userName: currentUser?.name || 'Clerk',
+        userName: actor,
         userRole: currentUser?.role || 'Pharmacy Stock Clerk',
         action: actionName,
         details: actionDetails
       };
       await setDoc(doc(db, 'logs', logId), newLog);
 
-      spawnAlert(successMsg, 'success');
+      spawnAlert(successMsg, 'success', id, booking.hn);
       return true;
     } catch (e: any) {
       handleFirestoreError(e, OperationType.UPDATE, `bookings/${id}`);

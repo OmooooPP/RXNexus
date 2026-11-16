@@ -62,6 +62,8 @@ export interface Verification {
   verifiedAt: string;
   orderedBy?: string;
   orderedAt?: string;
+  orderNote?: string;
+  arrivalNote?: string;
   rejectionReason?: string;
   rejectionNote?: string;
   rejectedBy?: string;

@@ -21,7 +21,6 @@ import {
   AlertCircle,
   XCircle,
   Ban,
-  ShieldCheck,
   ClipboardCheck,
   ArrowRight,
   CornerDownRight,
@@ -46,7 +45,6 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
     requestCancelBooking,
     approveCancelBooking,
     rejectCancelBooking,
-    stockReverifyOrder,
     markBorrowedMedReturned,
     verifyClerk,
     deleteBooking,
@@ -88,22 +86,15 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
   const [cancelReasonCustom, setCancelReasonCustom] = useState('');
   const [cancelerName, setCancelerName] = useState('');
 
-  // Stock Re-verify modal state
-  const [stockReverifyingBooking, setStockReverifyingBooking] = useState<Booking | null>(null);
-  const [stockReverifyNotes, setStockReverifyNotes] = useState('');
-  const [stockReverifyInspector, setStockReverifyInspector] = useState('');
-  const [stockReverifyZoom, setStockReverifyZoom] = useState<number>(1);
-  const [isStockRejecting, setIsStockRejecting] = useState(false);
-  const [stockRejectReason, setStockRejectReason] = useState('รายการยาไม่ตรงกับยอดคงคลัง');
-
   const [holdReason, setHoldReason] = useState('');
   const [nurseName, setNurseName] = useState('');
   const [rolloverDate, setRolloverDate] = useState('');
   const [confirmingClerkBooking, setConfirmingClerkBooking] = useState<Booking | null>(null);
+  const [clerkOperatorName, setClerkOperatorName] = useState('');
+  const [clerkActionNote, setClerkActionNote] = useState('');
 
   const selectedImgZoomRef = useRef<HTMLDivElement | null>(null);
   const verifyImgZoomRef = useRef<HTMLDivElement | null>(null);
-  const stockImgZoomRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (initialSearchQuery) {
@@ -410,9 +401,6 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
           <h3 className="font-bold text-sm text-slate-700 font-sans uppercase tracking-tight">
             {t.tableTitle} ({filteredBookings.length})
           </h3>
-          <span className="text-[10px] bg-slate-100 text-slate-700 font-semibold px-2 py-0.5 rounded font-mono">
-            TRACEABILITY INDEX: 100% SECURE
-          </span>
         </div>
 
         {filteredBookings.length === 0 ? (
@@ -660,30 +648,36 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
                             </div>
                           )}
 
-                          {/* Clerk validation status */}
+                          {/* Stock Confirmation 2-Step Status & Timestamps */}
                           <div 
                             className="group relative flex flex-col gap-0.5 text-[10px] p-1.5 rounded-lg border bg-white border-slate-250 cursor-help"
                             title={
                               clerkVerifiedValueDone
-                                ? `Ordered By: ${b.clerkVerification.orderedBy || '-'}\nOrdered At: ${b.clerkVerification.orderedAt ? new Date(b.clerkVerification.orderedAt).toLocaleString(language === 'TH' ? 'th-TH' : 'en-US') : '-'}\nArrived By: ${b.clerkVerification.verifiedBy || '-'}\nArrived At: ${b.clerkVerification.verifiedAt ? new Date(b.clerkVerification.verifiedAt).toLocaleString(language === 'TH' ? 'th-TH' : 'en-US') : '-'}`
+                                ? `1. สั่งซื้อโดย: ${b.clerkVerification.orderedBy || '-'} (${b.clerkVerification.orderedAt ? new Date(b.clerkVerification.orderedAt).toLocaleString(language === 'TH' ? 'th-TH' : 'en-US') : '-'})\n2. ของมาถึงโดย: ${b.clerkVerification.verifiedBy || '-'} (${b.clerkVerification.verifiedAt ? new Date(b.clerkVerification.verifiedAt).toLocaleString(language === 'TH' ? 'th-TH' : 'en-US') : '-'})`
                                 : b.clerkVerification?.status === 'Accepted'
-                                ? `Ordered By: ${b.clerkVerification.orderedBy || '-'}\nOrdered At: ${b.clerkVerification.orderedAt ? new Date(b.clerkVerification.orderedAt).toLocaleString(language === 'TH' ? 'th-TH' : 'en-US') : '-'}\nAwaiting Delivery Arrival`
-                                : 'Pending warehouse processing'
+                                ? `1. สั่งซื้อโดย: ${b.clerkVerification.orderedBy || '-'} (${b.clerkVerification.orderedAt ? new Date(b.clerkVerification.orderedAt).toLocaleString(language === 'TH' ? 'th-TH' : 'en-US') : '-'})\nรอของมาส่งจริง`
+                                : phVerifiedValueDone
+                                ? 'รอคลังกดยืนยันสั่งซื้อยา (ขั้นที่ 1)'
+                                : 'รอเภสัชกรทวนสอบใบสั่งยาก่อน'
                             }
                           >
-                            <div className="flex items-center justify-between">
-                              <span className="text-slate-400 font-medium">Clerk / Stock:</span>
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="text-slate-400 font-medium">Stock:</span>
                               {clerkVerifiedValueDone ? (
-                                <span className="text-green-600 font-bold flex items-center gap-1">
-                                  <CheckCircle className="w-3 h-3" /> {language === 'TH' ? 'ของ Arrived' : 'Arrived'}
+                                <span className="text-emerald-600 font-bold flex items-center gap-1">
+                                  <CheckCircle className="w-3 h-3" /> {language === 'TH' ? 'ของมาถึงแล้ว' : 'Arrived'}
                                 </span>
                               ) : b.clerkVerification?.status === 'Accepted' ? (
                                 <span className="text-indigo-600 font-bold flex items-center gap-1 animate-pulse">
-                                  <Clock className="w-3 h-3 text-indigo-500" /> {language === 'TH' ? 'สั่งซื้อแล้ว' : 'Ordered'}
+                                  <Clock className="w-3 h-3 text-indigo-500" /> {language === 'TH' ? 'ยืนยันสั่งซื้อแล้ว' : 'Ordered'}
+                                </span>
+                              ) : phVerifiedValueDone ? (
+                                <span className="text-amber-600 font-bold flex items-center gap-1">
+                                  <Clock className="w-3 h-3 animate-pulse" /> {language === 'TH' ? 'รอยืนยันสั่งซื้อ' : 'Pending Order'}
                                 </span>
                               ) : (
-                                <span className="text-amber-500 font-bold flex items-center gap-1">
-                                  <Clock className="w-3 h-3 animate-pulse" /> {t.notVerified}
+                                <span className="text-slate-400 font-semibold flex items-center gap-1">
+                                  <Clock className="w-3 h-3" /> {language === 'TH' ? 'รอเภสัชทวนสอบ' : 'Awaiting Rx'}
                                 </span>
                               )}
                             </div>
@@ -691,15 +685,23 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
                             {(b.clerkVerification?.orderedAt || b.clerkVerification?.verifiedAt) && (
                               <div className="text-[8.5px] text-slate-500 border-t border-slate-100 pt-0.5 space-y-0.5 font-mono">
                                 {b.clerkVerification.orderedAt && (
-                                  <div className="flex justify-between">
-                                    <span>สั่งซื้อ:</span>
-                                    <span>{new Date(b.clerkVerification.orderedAt).toLocaleString(language === 'TH' ? 'th-TH' : 'en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                                  <div className="flex justify-between gap-1">
+                                    <span className="truncate text-indigo-700 font-sans font-semibold">
+                                      1. สั่ง: {b.clerkVerification.orderedBy || '-'}
+                                    </span>
+                                    <span className="shrink-0">
+                                      {new Date(b.clerkVerification.orderedAt).toLocaleString(language === 'TH' ? 'th-TH' : 'en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                    </span>
                                   </div>
                                 )}
                                 {clerkVerifiedValueDone && b.clerkVerification.verifiedAt && (
-                                  <div className="flex justify-between text-emerald-700 font-bold">
-                                    <span>ของเข้า:</span>
-                                    <span>{new Date(b.clerkVerification.verifiedAt).toLocaleString(language === 'TH' ? 'th-TH' : 'en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                                  <div className="flex justify-between gap-1 text-emerald-700 font-bold">
+                                    <span className="truncate font-sans">
+                                      2. ถึง: {b.clerkVerification.verifiedBy || '-'}
+                                    </span>
+                                    <span className="shrink-0">
+                                      {new Date(b.clerkVerification.verifiedAt).toLocaleString(language === 'TH' ? 'th-TH' : 'en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                    </span>
                                   </div>
                                 )}
                               </div>
@@ -709,21 +711,26 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
                             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-max max-w-xs bg-slate-900/95 text-white text-[10px] p-2.5 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none border border-slate-800 font-sans leading-relaxed">
                               {clerkVerifiedValueDone ? (
                                 <div className="space-y-1 text-left">
-                                  <p className="font-bold border-b border-white/10 pb-1 text-green-400">✓ Complete (Stock Arrived)</p>
-                                  <p><span className="text-slate-300">1. Ordered By:</span> {b.clerkVerification.orderedBy || 'Staff'}</p>
-                                  <p><span className="text-slate-300">At:</span> {b.clerkVerification.orderedAt ? new Date(b.clerkVerification.orderedAt).toLocaleString(language === 'TH' ? 'th-TH' : 'en-US') : '-'}</p>
-                                  <p className="border-t border-white/5 my-1 pt-1"><span className="text-slate-300">2. Arrived By:</span> {b.clerkVerification.verifiedBy}</p>
-                                  <p><span className="text-slate-300">At:</span> {b.clerkVerification.verifiedAt ? new Date(b.clerkVerification.verifiedAt).toLocaleString(language === 'TH' ? 'th-TH' : 'en-US') : '-'}</p>
+                                  <p className="font-bold border-b border-white/10 pb-1 text-emerald-400">✓ ยืนยันครบ 2 ขั้นตอน (ของมาถึงแล้ว)</p>
+                                  <p><span className="text-slate-300">1. ยืนยันสั่งซื้อ:</span> {b.clerkVerification.orderedBy || 'Staff'}</p>
+                                  <p><span className="text-slate-300">เวลาสั่งซื้อ:</span> {b.clerkVerification.orderedAt ? new Date(b.clerkVerification.orderedAt).toLocaleString(language === 'TH' ? 'th-TH' : 'en-US') : '-'}</p>
+                                  {b.clerkVerification.orderNote && <p><span className="text-slate-300">หมายเหตุสั่งซื้อ:</span> {b.clerkVerification.orderNote}</p>}
+                                  <p className="border-t border-white/10 my-1 pt-1"><span className="text-slate-300">2. ยืนยันของมาถึง:</span> {b.clerkVerification.verifiedBy}</p>
+                                  <p><span className="text-slate-300">เวลาของถึง:</span> {b.clerkVerification.verifiedAt ? new Date(b.clerkVerification.verifiedAt).toLocaleString(language === 'TH' ? 'th-TH' : 'en-US') : '-'}</p>
+                                  {b.clerkVerification.arrivalNote && <p><span className="text-slate-300">หมายเหตุรับของ:</span> {b.clerkVerification.arrivalNote}</p>}
                                 </div>
                               ) : b.clerkVerification?.status === 'Accepted' ? (
                                 <div className="space-y-1 text-left">
-                                  <p className="font-bold border-b border-white/10 pb-1 text-indigo-400">⚡ Step 1: Order Sourced</p>
-                                  <p><span className="text-slate-300">Ordered By:</span> {b.clerkVerification.orderedBy || 'Staff'}</p>
-                                  <p><span className="text-slate-300">At:</span> {b.clerkVerification.orderedAt ? new Date(b.clerkVerification.orderedAt).toLocaleString(language === 'TH' ? 'th-TH' : 'en-US') : '-'}</p>
-                                  <p className="text-amber-400 font-medium pt-1">Awaiting physical delivery confirmation...</p>
+                                  <p className="font-bold border-b border-white/10 pb-1 text-indigo-400">1. ยืนยันการสั่งซื้อยาแล้ว</p>
+                                  <p><span className="text-slate-300">ผู้ยืนยัน:</span> {b.clerkVerification.orderedBy || 'Staff'}</p>
+                                  <p><span className="text-slate-300">เวลา:</span> {b.clerkVerification.orderedAt ? new Date(b.clerkVerification.orderedAt).toLocaleString(language === 'TH' ? 'th-TH' : 'en-US') : '-'}</p>
+                                  {b.clerkVerification.orderNote && <p><span className="text-slate-300">หมายเหตุ:</span> {b.clerkVerification.orderNote}</p>}
+                                  <p className="text-amber-400 font-medium pt-1">รอการกดยืนยันครั้งที่ 2 เมื่อของมาถึง...</p>
                                 </div>
+                              ) : phVerifiedValueDone ? (
+                                <p className="text-amber-400 font-medium text-left">เภสัชทวนสอบแล้ว · รอคลังกดยืนยันสั่งซื้อ (ขั้น 1)</p>
                               ) : (
-                                <p className="text-amber-400 font-medium text-left">Awaiting clerk/stock processing</p>
+                                <p className="text-slate-300 font-medium text-left">รอเภสัชกรทวนสอบรายการยาก่อนดำเนินการคลัง</p>
                               )}
                               <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-900/95" />
                             </div>
@@ -941,47 +948,34 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
                             </button>
                           )}
 
-                          {/* Stock Re-verify Trigger (Stock / Clerk / Pharmacist / Admin) */}
-                          {(currentUser?.role === 'Pharmacy Stock Clerk' || currentUser?.role === 'Admin' || currentUser?.role === 'Pharmacist') && (
-                            <button
-                              type="button"
-                              id={`stock-reverify-${b.id}`}
-                              onClick={() => {
-                                setStockReverifyingBooking(b);
-                                setStockReverifyInspector(currentUser?.name || '');
-                                setStockReverifyNotes(b.stockVerification?.notes || '');
-                                setIsStockRejecting(false);
-                              }}
-                              className={`p-1 px-2 text-[10px] font-bold rounded-lg transition-colors cursor-pointer shadow-xs border flex items-center gap-1 ${
-                                b.stockVerification?.status === 'Verified'
-                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
-                                  : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
-                              }`}
-                              title="ทวนสอบ Order Verify ฝ่ายคลังยา (Stock Re-verify)"
-                            >
-                              <ShieldCheck className="w-3 h-3" />
-                              <span>{language === 'TH' ? 'ทวนสอบ Stock' : 'Stock Verify'}</span>
-                              {b.stockVerification?.status === 'Verified' && <Check className="w-2.5 h-2.5 text-emerald-600" />}
-                            </button>
-                          )}
-
-                          {/* Verify as clerk trigger with 2-Step Confirmation Popup (REQ-08) */}
-                          {canVerifyAsClerk && phVerifiedValueDone && !clerkVerifiedValueDone && (
+                          {/* Stock 2-Step Confirmation Trigger (1. Confirm Purchase Order -> 2. Confirm Arrived) */}
+                          {!b.cancelStatus?.approved && canVerifyAsClerk && phVerifiedValueDone && !clerkVerifiedValueDone && (
                             <button
                               id={`verify-clerk-${b.id}`}
                               type="button"
-                              onClick={() => setConfirmingClerkBooking(b)}
+                              onClick={() => {
+                                setConfirmingClerkBooking(b);
+                                setClerkOperatorName(currentUser?.name || '');
+                                setClerkActionNote('');
+                              }}
                               disabled={loading}
-                              className={`p-1 px-2.5 text-[10px] font-bold rounded-lg transition-colors cursor-pointer shadow-xs text-white ${
+                              className={`p-1 px-2.5 text-[10px] font-bold rounded-lg transition-colors cursor-pointer shadow-xs text-white flex items-center gap-1 ${
                                 b.clerkVerification?.status === 'Accepted'
                                   ? 'bg-emerald-600 hover:bg-emerald-700'
                                   : 'bg-indigo-600 hover:bg-indigo-700'
                               }`}
-                            >
-                              {b.clerkVerification?.status === 'Accepted'
-                                ? (language === 'TH' ? 'ยืนยันของ Arrived' : 'Confirm Arrived')
-                                : (language === 'TH' ? 'รับ Order / สั่งซื้อ' : 'Receive & Order')
+                              title={
+                                b.clerkVerification?.status === 'Accepted'
+                                  ? 'กดยืนยันครั้งที่ 2 เมื่อของมาถึงจริง (เปิด Shortcut Detail)'
+                                  : 'กดยืนยันครั้งแรกเพื่อสั่งซื้อยาจริง (เปิด Shortcut Detail)'
                               }
+                            >
+                              <ClipboardCheck className="w-3 h-3" />
+                              <span>
+                                {b.clerkVerification?.status === 'Accepted'
+                                  ? (language === 'TH' ? 'ยืนยันของมาถึง (2/2)' : 'Confirm Arrived (2/2)')
+                                  : (language === 'TH' ? 'ยืนยันการสั่งซื้อ (1/2)' : 'Confirm Order (1/2)')}
+                              </span>
                             </button>
                           )}
 
@@ -2014,247 +2008,6 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
         </div>
       )}
 
-      {/* 7. Stock Re-verify Modal (คล้าย user pharmacist) */}
-      {stockReverifyingBooking && (
-        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-fade-in font-sans overflow-y-auto">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-5xl w-full flex flex-col md:flex-row overflow-hidden max-h-[90vh]">
-            {/* Left: Scan Preview */}
-            <div className="flex-1 bg-slate-50 p-5 flex flex-col justify-between border-r border-slate-100 overflow-y-auto max-h-[45vh] md:max-h-none">
-              <div className="mb-3 flex justify-between items-center">
-                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
-                  {language === 'TH' ? 'ตรวจสอบใบสั่งยา (STOCK AUDIT SCAN)' : 'PRESCRIPTION AUDIT'}
-                </span>
-                {stockReverifyingBooking.prescriptionImage && (
-                  <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-1 text-xs shadow-3xs">
-                    <button
-                      type="button"
-                      onClick={() => setStockReverifyZoom((prev) => Math.max(0.5, prev - 0.25))}
-                      className="p-1 hover:bg-slate-100 rounded text-slate-600 cursor-pointer"
-                    >
-                      <ZoomOut className="w-3.5 h-3.5" />
-                    </button>
-                    <span className="font-mono font-bold text-blue-600 min-w-[38px] text-center text-[10px]">
-                      {Math.round(stockReverifyZoom * 100)}%
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setStockReverifyZoom((prev) => Math.min(4, prev + 0.25))}
-                      className="p-1 hover:bg-slate-100 rounded text-slate-600 cursor-pointer"
-                    >
-                      <ZoomIn className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div
-                ref={(el) => {
-                  if (el && el !== stockImgZoomRef.current) {
-                    stockImgZoomRef.current = el;
-                    el.addEventListener(
-                      'wheel',
-                      (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (e.deltaY < 0) {
-                          setStockReverifyZoom((prev) => Math.min(4, prev + 0.2));
-                        } else {
-                          setStockReverifyZoom((prev) => Math.max(0.5, prev - 0.2));
-                        }
-                      },
-                      { passive: false }
-                    );
-                  }
-                }}
-                className="flex-1 flex items-center justify-center bg-white rounded-xl border border-slate-200/60 p-4 min-h-[250px] overflow-auto"
-              >
-                {stockReverifyingBooking.prescriptionImage ? (
-                  <img
-                    src={stockReverifyingBooking.prescriptionImage}
-                    alt="Prescription"
-                    className="max-h-[380px] w-auto object-contain rounded-lg transition-transform duration-150"
-                    style={{ transform: `scale(${stockReverifyZoom})` }}
-                  />
-                ) : (
-                  <div className="text-center p-8 text-slate-400 space-y-2">
-                    <ClipboardCheck className="w-10 h-10 mx-auto text-slate-300" />
-                    <p className="text-xs font-bold text-slate-500">
-                      {language === 'TH' ? 'ไม่มีรูปภาพสแกนใบสั่งยา' : 'No prescription scan uploaded'}
-                    </p>
-                  </div>
-                )}
-              </div>
-              <div className="mt-3 text-center text-[10px] text-slate-400 font-mono">
-                Stock Re-verification Ledger Engine
-              </div>
-            </div>
-
-            {/* Right: Items Checklist & Actions */}
-            <div className="flex-1 p-5 md:p-6 flex flex-col justify-between overflow-y-auto max-h-[45vh] md:max-h-none space-y-4">
-              <div className="space-y-4">
-                <div className="border-b border-slate-150 pb-3">
-                  <h3 className="font-extrabold text-sm text-indigo-900 uppercase flex items-center gap-2">
-                    <ShieldCheck className="w-5 h-5 text-indigo-600" />
-                    <span>{language === 'TH' ? 'Stock - ทวนสอบ Order Verify' : 'Stock Order Re-verification'}</span>
-                  </h3>
-                  <p className="text-[10.5px] text-slate-550 mt-1">
-                    {language === 'TH'
-                      ? 'ทวนสอบความถูกต้องของเวชภัณฑ์ยา ยอดสต็อก และส่งข้อมูลกลับไปยังแดชบอร์ดนับเป็นการจองยามาใหม่'
-                      : 'Audit inventory fulfillment and re-verify order to display actively on clinical dashboard.'}
-                  </p>
-                </div>
-
-                {/* Patient Profile */}
-                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <span className="text-[9px] uppercase font-bold text-slate-400 block">Patient</span>
-                    <span className="font-bold text-slate-800">{stockReverifyingBooking.patientName}</span>
-                  </div>
-                  <div>
-                    <span className="text-[9px] uppercase font-bold text-slate-400 block">HN</span>
-                    <span className="font-mono font-bold text-blue-700">{stockReverifyingBooking.hn}</span>
-                  </div>
-                  <div>
-                    <span className="text-[9px] uppercase font-bold text-slate-400 block">Date of Use</span>
-                    <span className="font-semibold text-slate-700">{formatDateToDMY(stockReverifyingBooking.dateOfUse)}</span>
-                  </div>
-                  <div>
-                    <span className="text-[9px] uppercase font-bold text-slate-400 block">Department</span>
-                    <span className="font-semibold text-slate-700">{stockReverifyingBooking.department}</span>
-                  </div>
-                </div>
-
-                {/* Medications List */}
-                <div className="space-y-1.5">
-                  <span className="text-[10px] uppercase font-extrabold tracking-wide text-slate-400 block">
-                    {language === 'TH' ? 'รายการเวชภัณฑ์ยาที่ต้องทวนสอบ' : 'ITEMS TO RE-VERIFY'}
-                  </span>
-                  <div className="border border-slate-200/60 rounded-xl overflow-hidden shadow-3xs">
-                    <table className="w-full text-left text-[11px] border-collapse bg-white">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-150 text-[9.5px] uppercase font-extrabold text-slate-500">
-                          <th className="p-2.5">Medication</th>
-                          <th className="p-2.5">Stock Code</th>
-                          <th className="p-2.5 text-center">Qty</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
-                        {stockReverifyingBooking.medications.map((m, idx) => (
-                          <tr key={idx} className="hover:bg-slate-50/50">
-                            <td className="p-2.5 font-bold text-slate-800">{m.drugName}</td>
-                            <td className="p-2.5 font-mono text-slate-500">{m.stockCode}</td>
-                            <td className="p-2.5 text-center font-bold text-blue-600">{m.quantity}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {isStockRejecting ? (
-                  <div className="bg-rose-50 border border-rose-200 p-3 rounded-xl space-y-2">
-                    <label className="block text-[10px] font-bold text-rose-800 uppercase">
-                      {language === 'TH' ? 'ระบุสาเหตุที่ทวนสอบไม่ผ่าน *' : 'Specify Stock Issue Reason *'}
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={stockRejectReason}
-                      onChange={(e) => setStockRejectReason(e.target.value)}
-                      placeholder="เช่น ยาในคลังไม่เพียงพอ / ล็อตยาหมดอายุ"
-                      className="w-full bg-white border border-rose-200 p-2 rounded-lg text-xs font-semibold focus:outline-hidden"
-                    />
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-3 pt-1">
-                    <div>
-                      <label className="block text-[10px] uppercase font-extrabold tracking-wide text-slate-400 mb-1">
-                        {language === 'TH' ? 'ผู้ทวนสอบคลังยา *' : 'Stock Reviewer *'}
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={stockReverifyInspector}
-                        onChange={(e) => setStockReverifyInspector(e.target.value)}
-                        placeholder="e.g. Stock Coordinator"
-                        className="w-full bg-slate-50 border border-slate-200 p-2 rounded-lg text-xs font-semibold focus:outline-hidden focus:border-indigo-500 focus:bg-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] uppercase font-extrabold tracking-wide text-slate-400 mb-1">
-                        {language === 'TH' ? 'บันทึกทวนสอบคลัง (Lot / Notes)' : 'Lot / Notes'}
-                      </label>
-                      <input
-                        type="text"
-                        value={stockReverifyNotes}
-                        onChange={(e) => setStockReverifyNotes(e.target.value)}
-                        placeholder="e.g. Lot 2026-X Verified"
-                        className="w-full bg-slate-50 border border-slate-200 p-2 rounded-lg text-xs font-semibold focus:outline-hidden focus:border-indigo-500 focus:bg-white"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-2 justify-end pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setStockReverifyingBooking(null)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold cursor-pointer"
-                >
-                  {language === 'TH' ? 'ปิดหน้าต่าง' : 'Close'}
-                </button>
-
-                {isStockRejecting ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setIsStockRejecting(false)}
-                      className="px-3 py-2 bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
-                    >
-                      {language === 'TH' ? 'ย้อนกลับ' : 'Back'}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={loading || !stockRejectReason.trim()}
-                      onClick={async () => {
-                        const res = await stockReverifyOrder(stockReverifyingBooking.id, false, stockReverifyNotes, stockRejectReason);
-                        if (res.success) setStockReverifyingBooking(null);
-                      }}
-                      className="px-4.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow-sm active:scale-95"
-                    >
-                      {language === 'TH' ? 'ยืนยันทวนสอบไม่ผ่าน' : 'Confirm Reject'}
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setIsStockRejecting(true)}
-                      className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-250 rounded-xl text-xs font-bold cursor-pointer"
-                    >
-                      {language === 'TH' ? 'ทวนสอบไม่ผ่าน' : 'Stock Issue'}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={loading || !stockReverifyInspector.trim()}
-                      onClick={async () => {
-                        const res = await stockReverifyOrder(stockReverifyingBooking.id, true, stockReverifyNotes);
-                        if (res.success) setStockReverifyingBooking(null);
-                      }}
-                      className="px-4.5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors flex items-center gap-1.5 shadow-sm active:scale-95 duration-150"
-                    >
-                      <ShieldCheck className="w-3.5 h-3.5" />
-                      <span>{language === 'TH' ? 'ทวนสอบ Order สำเร็จ (Re-verify)' : 'Confirm Stock Re-verify'}</span>
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Custom Delete Confirmation Modal */}
       {deletingBookingId && (
@@ -2310,64 +2063,168 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
         </div>
       )}
 
-      {/* 8. Clerk 2-Step Confirmation Modal Popup (REQ-08) */}
+      {/* 7. Clerk 2-Step Confirmation Shortcut Detail Modal Popup */}
       {confirmingClerkBooking && (
-        <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 animate-fade-in font-sans">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden">
-            <div className={`p-5 border-b flex items-center gap-3 ${
+        <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 animate-fade-in font-sans overflow-y-auto">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-xl w-full overflow-hidden">
+            <div className={`p-5 border-b flex items-center justify-between gap-3 ${
               confirmingClerkBooking.clerkVerification?.status === 'Accepted'
                 ? 'bg-emerald-50 border-emerald-100'
                 : 'bg-indigo-50 border-indigo-100'
             }`}>
-              <div className={`p-2 rounded-xl ${
-                confirmingClerkBooking.clerkVerification?.status === 'Accepted'
-                  ? 'bg-emerald-100 text-emerald-700'
-                  : 'bg-indigo-100 text-indigo-700'
-              }`}>
-                <ClipboardCheck className="w-5 h-5" />
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-xl ${
+                  confirmingClerkBooking.clerkVerification?.status === 'Accepted'
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : 'bg-indigo-100 text-indigo-700'
+                }`}>
+                  <ClipboardCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 uppercase">
+                    {confirmingClerkBooking.clerkVerification?.status === 'Accepted'
+                      ? (language === 'TH' ? 'ยืนยันครั้งที่ 2: ของมาถึงคลังแล้ว (Shortcut Detail)' : 'Step 2: Confirm Stock Arrived (Shortcut Detail)')
+                      : (language === 'TH' ? 'ยืนยันครั้งที่ 1: ยืนยันการสั่งซื้อยา (Shortcut Detail)' : 'Step 1: Confirm Order Purchase (Shortcut Detail)')}
+                  </h3>
+                  <p className="text-[10.5px] text-slate-500 font-mono mt-0.5">
+                    {confirmingClerkBooking.id} • HN: {confirmingClerkBooking.hn} • {confirmingClerkBooking.mode}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-bold text-sm text-slate-900 uppercase">
-                  {confirmingClerkBooking.clerkVerification?.status === 'Accepted'
-                    ? (language === 'TH' ? 'ขั้นตอนที่ 2: ยืนยันรับของมาส่งจริง (Confirm Arrived)' : 'Step 2: Confirm Stock Arrived')
-                    : (language === 'TH' ? 'ขั้นตอนที่ 1: ยืนยันรับ Order และสั่งซื้อจริง' : 'Step 1: Confirm Receive & Purchase Order')}
-                </h3>
-                <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-                  {confirmingClerkBooking.id} • HN: {confirmingClerkBooking.hn}
-                </p>
-              </div>
+              <button
+                type="button"
+                onClick={() => setConfirmingClerkBooking(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-white/60 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
-            <div className="p-5 space-y-3 text-xs text-slate-700">
-              <div className="bg-slate-50 rounded-xl p-3 border border-slate-150 space-y-1">
-                <div><span className="text-slate-400 font-bold">ผู้ป่วย:</span> <span className="font-bold text-slate-900">{confirmingClerkBooking.patientName}</span></div>
-                <div><span className="text-slate-400 font-bold">ห้องยา:</span> <span className="font-bold text-indigo-700">{confirmingClerkBooking.pharmacyLocation || 'ไม่ระบุ'}</span></div>
-                <div><span className="text-slate-400 font-bold">วันที่ใช้ยา:</span> <span className="font-mono font-bold">{formatDateToDMY(confirmingClerkBooking.dateOfUse)}</span></div>
+            <div className="p-5 space-y-3.5 text-xs text-slate-700 max-h-[72vh] overflow-y-auto">
+              {/* Patient & Pharmacist Verification Shortcut Detail */}
+              <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200/80 grid grid-cols-2 gap-2.5">
+                <div>
+                  <span className="text-[9.5px] font-bold text-slate-400 uppercase block">ผู้ป่วย (Patient)</span>
+                  <span className="font-bold text-slate-900 text-xs">{confirmingClerkBooking.patientName}</span>
+                </div>
+                <div>
+                  <span className="text-[9.5px] font-bold text-slate-400 uppercase block">แผนก / ห้องยา (Dept / Loc)</span>
+                  <span className="font-bold text-indigo-700">
+                    {confirmingClerkBooking.department} • {confirmingClerkBooking.pharmacyLocation || 'ไม่ระบุห้องยา'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[9.5px] font-bold text-slate-400 uppercase block">วันที่ต้องใช้ยา (Date of Use)</span>
+                  <span className="font-mono font-bold text-slate-800">{formatDateToDMY(confirmingClerkBooking.dateOfUse)}</span>
+                </div>
+                <div>
+                  <span className="text-[9.5px] font-bold text-slate-400 uppercase block">เภสัชกรทวนสอบแล้ว</span>
+                  <span className="font-semibold text-emerald-700">
+                    {confirmingClerkBooking.pharmacistVerification?.verifiedBy || '-'}
+                    {confirmingClerkBooking.pharmacistVerification?.verifiedAt && (
+                      <span className="block font-mono text-[9.5px] text-slate-500">
+                        {new Date(confirmingClerkBooking.pharmacistVerification.verifiedAt).toLocaleString(language === 'TH' ? 'th-TH' : 'en-US')}
+                      </span>
+                    )}
+                  </span>
+                </div>
               </div>
 
+              {/* Step 1 Timestamp Audit when confirming Step 2 */}
+              {confirmingClerkBooking.clerkVerification?.status === 'Accepted' && (
+                <div className="bg-indigo-50/80 border border-indigo-200 rounded-xl p-3 space-y-1">
+                  <div className="text-[10px] font-extrabold text-indigo-800 uppercase flex items-center justify-between">
+                    <span>ประวัติยืนยันครั้งที่ 1 (สั่งซื้อยาแล้ว)</span>
+                    <span className="font-mono text-[10px]">
+                      {confirmingClerkBooking.clerkVerification.orderedAt
+                        ? new Date(confirmingClerkBooking.clerkVerification.orderedAt).toLocaleString(language === 'TH' ? 'th-TH' : 'en-US')
+                        : '-'}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-indigo-900">
+                    ผู้กดยืนยันสั่งซื้อ: <span className="font-bold">{confirmingClerkBooking.clerkVerification.orderedBy || '-'}</span>
+                    {confirmingClerkBooking.clerkVerification.orderNote && (
+                      <span className="ml-2 text-slate-600">({confirmingClerkBooking.clerkVerification.orderNote})</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Medications Table */}
               <div className="space-y-1">
-                <span className="text-[10px] font-bold text-slate-400 uppercase block">
-                  {language === 'TH' ? 'รายการเวชภัณฑ์ยาใน Order นี้' : 'Ordered Medications'}
-                </span>
-                <div className="border border-slate-200 rounded-xl divide-y divide-slate-100 max-h-40 overflow-y-auto">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">
+                    {language === 'TH' ? 'รายละเอียดรายการยาที่ต้องดำเนินการ' : 'Medications Summary'}
+                  </span>
+                  <span className="text-[11px] font-bold text-blue-700">
+                    รวม ฿{confirmingClerkBooking.totalAmount.toLocaleString()}
+                  </span>
+                </div>
+                <div className="border border-slate-200 rounded-xl divide-y divide-slate-100 max-h-40 overflow-y-auto bg-white">
                   {confirmingClerkBooking.medications.map((m, i) => (
-                    <div key={i} className="p-2 flex justify-between items-center text-[11px]">
-                      <span className="font-semibold text-slate-800">{m.drugName} <span className="text-[9.5px] font-mono text-slate-400">({m.stockCode})</span></span>
-                      <span className="font-bold text-blue-700">x{m.quantity}</span>
+                    <div key={i} className="p-2.5 flex justify-between items-center text-[11px]">
+                      <div>
+                        <span className="font-bold text-slate-800 block">{m.drugName}</span>
+                        <span className="text-[9.5px] font-mono text-slate-400">Stock Code: {m.stockCode}</span>
+                      </div>
+                      <span className="font-extrabold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">x{m.quantity}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <p className="text-[11px] text-slate-500 leading-relaxed">
-                {confirmingClerkBooking.clerkVerification?.status === 'Accepted'
-                  ? (language === 'TH'
-                      ? 'ระบบจะบันทึกสถานะเป็น "ของ Arrived (พร้อมใช้งาน)" พร้อมบันทึกเวลาและชื่อผู้ยืนยัน'
-                      : 'Status will update to "Arrived (Ready-to-use)" with timestamp and staff signature.')
-                  : (language === 'TH'
-                      ? 'ระบบจะบันทึกสถานะเป็น "สั่งซื้อแล้ว (Ordered)" พร้อมบันทึกเวลาและชื่อผู้สั่งซื้อ'
-                      : 'Status will update to "Ordered" with timestamp and staff signature.')}
-              </p>
+              {confirmingClerkBooking.note && (
+                <div className="bg-amber-50/70 border border-amber-200 rounded-lg p-2.5 text-[11px] text-amber-900">
+                  <span className="font-bold">Note จากผู้จอง/เภสัชกร:</span> {confirmingClerkBooking.note}
+                </div>
+              )}
+
+              {/* Operator & Optional PO / Lot Note + Live Timestamp */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                    {confirmingClerkBooking.clerkVerification?.status === 'Accepted'
+                      ? (language === 'TH' ? 'ผู้ยืนยันรับของมาถึง *' : 'Confirmed Arrived By *')
+                      : (language === 'TH' ? 'ผู้ยืนยันการสั่งซื้อ *' : 'Confirmed Ordered By *')}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={clerkOperatorName}
+                    onChange={(e) => setClerkOperatorName(e.target.value)}
+                    placeholder="ชื่อเจ้าหน้าที่คลังยา"
+                    className="w-full bg-slate-50 border border-slate-200 p-2 rounded-lg text-xs font-semibold focus:outline-hidden focus:border-indigo-500 focus:bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                    {confirmingClerkBooking.clerkVerification?.status === 'Accepted'
+                      ? (language === 'TH' ? 'เลข Lot / หมายเหตุรับของ (ถ้ามี)' : 'Lot / Arrival Note (Optional)')
+                      : (language === 'TH' ? 'เลข PO / หมายเหตุสั่งซื้อ (ถ้ามี)' : 'PO / Order Note (Optional)')}
+                  </label>
+                  <input
+                    type="text"
+                    value={clerkActionNote}
+                    onChange={(e) => setClerkActionNote(e.target.value)}
+                    placeholder={
+                      confirmingClerkBooking.clerkVerification?.status === 'Accepted'
+                        ? 'เช่น Lot 2026-01, ส่งครบถ้วน'
+                        : 'เช่น PO-69110042'
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 p-2 rounded-lg text-xs font-semibold focus:outline-hidden focus:border-indigo-500 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-slate-900 text-slate-200 rounded-xl px-3.5 py-2.5 flex items-center justify-between text-[11px]">
+                <span className="flex items-center gap-1.5 font-medium">
+                  <Clock className="w-3.5 h-3.5 text-sky-400" />
+                  <span>{language === 'TH' ? 'Timestamp ที่จะบันทึกอัตโนมัติ:' : 'Audit Timestamp:'}</span>
+                </span>
+                <span className="font-mono font-bold text-sky-300">
+                  {new Date().toLocaleString(language === 'TH' ? 'th-TH' : 'en-US')}
+                </span>
+              </div>
             </div>
 
             <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
@@ -2380,13 +2237,15 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
               </button>
               <button
                 type="button"
-                disabled={loading}
+                disabled={loading || !clerkOperatorName.trim()}
                 onClick={async () => {
                   const targetId = confirmingClerkBooking.id;
+                  const opName = clerkOperatorName;
+                  const noteVal = clerkActionNote;
                   setConfirmingClerkBooking(null);
-                  await verifyClerk(targetId);
+                  await verifyClerk(targetId, opName, noteVal);
                 }}
-                className={`px-5 py-2 text-white rounded-xl text-xs font-bold cursor-pointer shadow-sm flex items-center gap-1.5 ${
+                className={`px-5 py-2 text-white rounded-xl text-xs font-bold cursor-pointer shadow-sm flex items-center gap-1.5 disabled:bg-slate-300 disabled:cursor-not-allowed ${
                   confirmingClerkBooking.clerkVerification?.status === 'Accepted'
                     ? 'bg-emerald-600 hover:bg-emerald-700'
                     : 'bg-indigo-600 hover:bg-indigo-700'
@@ -2395,8 +2254,8 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
                 <CheckCircle className="w-3.5 h-3.5" />
                 <span>
                   {confirmingClerkBooking.clerkVerification?.status === 'Accepted'
-                    ? (language === 'TH' ? 'ยืนยันของมาส่งแล้ว' : 'Confirm Arrived')
-                    : (language === 'TH' ? 'ยืนยันรับ Order / สั่งซื้อ' : 'Confirm Order')}
+                    ? (language === 'TH' ? 'ยืนยันของมาถึงจริง (บันทึกเวลา)' : 'Confirm Arrived')
+                    : (language === 'TH' ? 'ยืนยันการสั่งซื้อจริง (บันทึกเวลา)' : 'Confirm Purchase Order')}
                 </span>
               </button>
             </div>
