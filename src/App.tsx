@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useDeferredValue, useCallback } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { i18n } from './lib/i18n';
 import BookingForm from './components/BookingForm';
@@ -10,6 +10,7 @@ import ReportPrinter from './components/ReportPrinter';
 import OwingMedPanel from './components/OwingMedPanel';
 import DatabaseMaintenance from './components/DatabaseMaintenance';
 import PriceEstimation from './components/PriceEstimation';
+import RoleInstructionTab from './components/RoleInstructionTab';
 import LoadingSpinner from './components/LoadingSpinner';
 import BHPLogo from './components/BHPLogo';
 import { Booking, UserRole } from './types';
@@ -31,7 +32,12 @@ import {
   Clock,
   AlertCircle,
   Database,
-  Calculator
+  Calculator,
+  BookOpen,
+  Search,
+  Printer,
+  Edit,
+  ArrowRight
 } from 'lucide-react';
 
 function DashboardLayout() {
@@ -81,7 +87,7 @@ function DashboardLayout() {
   };
 
   // Active UI Navigation Tab State
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'booking' | 'calendar' | 'stocks' | 'users' | 'reports' | 'logs' | 'owing' | 'maintenance' | 'estimation'>(() =>
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'booking' | 'calendar' | 'stocks' | 'users' | 'reports' | 'logs' | 'owing' | 'maintenance' | 'estimation' | 'guide'>(() =>
     getDefaultTabForRole(currentUser?.role)
   );
 
@@ -93,6 +99,7 @@ function DashboardLayout() {
   }, [currentUser?.id, currentUser?.role]);
 
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+  const [searchResetTabNonce, setSearchResetTabNonce] = useState(0);
 
   // Booking parameter state for Editing sequence
   const [editingBookingId, setEditingBookingId] = useState<string | undefined>(undefined);
@@ -102,24 +109,49 @@ function DashboardLayout() {
   // Helper toggle for system alert drawer dropdown
   const [showAlertMenu, setShowAlertMenu] = useState(false);
 
+  const canQuickEditFromSearch =
+    currentUser?.role === 'Admin' ||
+    currentUser?.role === 'Pharmacist' ||
+    currentUser?.role === 'Nurse' ||
+    currentUser?.role === 'Doctor';
+
+  const handleOpenBookingFromSearch = useCallback((booking: Booking) => {
+    setGlobalSearchQuery(booking.hn || booking.patientName);
+    setSearchResetTabNonce((n) => n + 1);
+    setActiveTab('dashboard');
+  }, []);
+
+  const handleSubmitHeaderSearch = useCallback((query: string) => {
+    const q = query.trim();
+    if (!q) return;
+    setGlobalSearchQuery(q);
+    setSearchResetTabNonce((n) => n + 1);
+    setActiveTab('dashboard');
+  }, []);
+
+  const handleFocusHeaderSearch = useCallback(() => {
+    setShowAlertMenu(false);
+  }, []);
+
   const handleAlertClick = (al: any) => {
     if (al.hn) {
       setGlobalSearchQuery(al.hn);
+      setSearchResetTabNonce((n) => n + 1);
       setActiveTab('dashboard');
       setShowAlertMenu(false);
     }
   };
 
   // Handle edit reservation sequence
-  const triggerEdit = (id: string) => {
+  const triggerEdit = useCallback((id: string) => {
     setEditingBookingId(id);
     setActiveTab('booking');
-  };
+  }, []);
 
   // Handle print slip sequence
-  const triggerPrintSingle = (booking: Booking) => {
+  const triggerPrintSingle = useCallback((booking: Booking) => {
     setPrintingBooking(booking);
-  };
+  }, []);
 
   // Safe reset when tab switches
   useEffect(() => {
@@ -139,7 +171,7 @@ function DashboardLayout() {
       {/* Main App Navigation Header */}
       <header className="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-sm px-3 md:px-6 py-2 md:py-3.5 flex items-center justify-between print:hidden">
         {/* Brand identity */}
-        <div className="flex items-center gap-2 md:gap-4">
+        <div className="flex items-center gap-2 md:gap-4 shrink-0">
           <BHPLogo className="h-9 hidden md:block" />
           <div className="h-7 w-px bg-slate-200 hidden md:block"></div>
           <div>
@@ -153,7 +185,7 @@ function DashboardLayout() {
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-2 md:gap-4">
+        <div className="flex items-center gap-2 md:gap-3 flex-1 justify-end min-w-0 ml-2">
           {/* Dual language picker */}
           <div className="flex bg-slate-50 p-0.5 md:p-1 rounded-lg border border-slate-200 shrink-0">
             <button
@@ -174,12 +206,32 @@ function DashboardLayout() {
             </button>
           </div>
 
+          {/* Persistent Unified Global Booking Search Bar (next to Notification Bell) */}
+          {currentUser && (
+            <HeaderGlobalSearch
+              bookings={bookings}
+              language={language}
+              isDashboardActive={activeTab === 'dashboard'}
+              externalQuery={globalSearchQuery}
+              canQuickEdit={canQuickEditFromSearch}
+              formatDateToDMY={formatDateToDMY}
+              onFocusSearch={handleFocusHeaderSearch}
+              onDashboardSearchChange={setGlobalSearchQuery}
+              onSelectBooking={handleOpenBookingFromSearch}
+              onSubmitSearch={handleSubmitHeaderSearch}
+              onPrintBooking={triggerPrintSingle}
+              onEditBooking={triggerEdit}
+            />
+          )}
+
           {/* Alarm Notification Bells bell dropdown list */}
           {currentUser && (
             <div className="relative shrink-0">
               <button
                 id="header-notification-bell"
-                onClick={() => setShowAlertMenu(!showAlertMenu)}
+                onClick={() => {
+                  setShowAlertMenu(!showAlertMenu);
+                }}
                 className="p-1.5 md:p-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-500 hover:text-slate-800 rounded-full transition-all relative cursor-pointer"
                 title="System Notifications"
               >
@@ -395,6 +447,18 @@ function DashboardLayout() {
                 </button>
               )}
 
+              <button
+                onClick={() => setActiveTab('guide')}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+                  activeTab === 'guide'
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <BookOpen className="w-4 h-4 shrink-0" />
+                {language === 'TH' ? 'คู่มือใช้งานตาม Role' : 'Role Guide'}
+              </button>
+
               {/* Admin clearance links */}
               {currentUser?.role === 'Admin' && (
                 <>
@@ -556,7 +620,8 @@ function DashboardLayout() {
               onEditClick={triggerEdit}
               onPrintClick={triggerPrintSingle}
               initialSearchQuery={globalSearchQuery}
-              onClearInitialSearch={() => setGlobalSearchQuery('')}
+              searchResetTabNonce={searchResetTabNonce}
+              onSyncSearchQuery={setGlobalSearchQuery}
             />
           )}
 
@@ -616,6 +681,10 @@ function DashboardLayout() {
 
           {activeTab === 'maintenance' && currentUser?.role === 'Admin' && (
             <DatabaseMaintenance />
+          )}
+
+          {activeTab === 'guide' && (
+            <RoleInstructionTab />
           )}
         </main>
       </div>
@@ -1036,11 +1105,352 @@ function AuthGate() {
       </div>
       {/* Minimalist credit line below the container card in AuthGate */}
       <p className="mt-4 text-[10px] text-slate-400 font-medium tracking-wide animate-fade-in">
-        Powered By <span className="font-semibold text-slate-500">Preeyapat.P (Pharmacist)</span>
+        Powered By <span className="font-semibold text-slate-500">Preeyapat P. (Pharmacist)</span>
       </p>
     </div>
   );
 }
+
+interface HeaderGlobalSearchProps {
+  bookings: Booking[];
+  language: 'TH' | 'EN';
+  isDashboardActive: boolean;
+  externalQuery: string;
+  canQuickEdit: boolean;
+  formatDateToDMY: (dateStr: string) => string;
+  onFocusSearch: () => void;
+  onDashboardSearchChange: (query: string) => void;
+  onSelectBooking: (booking: Booking) => void;
+  onSubmitSearch: (query: string) => void;
+  onPrintBooking: (booking: Booking) => void;
+  onEditBooking: (id: string) => void;
+}
+
+const HeaderGlobalSearch = React.memo(function HeaderGlobalSearch({
+  bookings,
+  language,
+  isDashboardActive,
+  externalQuery,
+  canQuickEdit,
+  formatDateToDMY,
+  onFocusSearch,
+  onDashboardSearchChange,
+  onSelectBooking,
+  onSubmitSearch,
+  onPrintBooking,
+  onEditBooking
+}: HeaderGlobalSearchProps) {
+  const [searchTerm, setSearchTerm] = useState(externalQuery);
+  const [isOpen, setIsOpen] = useState(false);
+  const [highlightedIdx, setHighlightedIdx] = useState(0);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const deferredTerm = useDeferredValue(searchTerm);
+
+  // Sync external triggers (e.g. clicking an alert, clicking an HN chip, or switching tabs)
+  useEffect(() => {
+    setSearchTerm(externalQuery);
+  }, [externalQuery]);
+
+  // Ensure dropdown hides automatically when already viewing Dashboard
+  useEffect(() => {
+    if (isDashboardActive) {
+      setIsOpen(false);
+    }
+  }, [isDashboardActive]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Pre-index & pre-sort active bookings ONLY when bookings array changes (never per keystroke)
+  const indexedActiveBookings = useMemo(() => {
+    return bookings
+      .filter((b) => !b.cancelStatus?.approved)
+      .map((b) => {
+        const hnLower = (b.hn || '').toLowerCase();
+        return {
+          booking: b,
+          hnLower,
+          hnDigits: hnLower.replace(/-/g, ''),
+          nameLower: (b.patientName || '').toLowerCase(),
+          dateOfUse: b.dateOfUse || ''
+        };
+      })
+      .sort((a, b) => b.dateOfUse.localeCompare(a.dateOfUse));
+  }, [bookings]);
+
+  // Single O(n) pass against pre-normalized strings (no regex/sort on every keystroke)
+  const searchResults = useMemo(() => {
+    if (isDashboardActive) return [];
+    const q = deferredTerm.trim();
+    if (!q) return [];
+    const qLower = q.toLowerCase();
+    const qDigits = qLower.replace(/-/g, '');
+    const prefixMatches: Booking[] = [];
+    const otherMatches: Booking[] = [];
+
+    for (let i = 0; i < indexedActiveBookings.length; i++) {
+      const entry = indexedActiveBookings[i];
+      const matchesHn =
+        entry.hnLower.includes(qLower) ||
+        (qDigits.length > 0 && entry.hnDigits.includes(qDigits));
+      const matchesName = entry.nameLower.includes(qLower);
+
+      if (matchesHn || matchesName) {
+        if (qDigits.length > 0 && entry.hnDigits.startsWith(qDigits)) {
+          prefixMatches.push(entry.booking);
+        } else {
+          otherMatches.push(entry.booking);
+        }
+      }
+    }
+
+    return prefixMatches.concat(otherMatches);
+  }, [indexedActiveBookings, deferredTerm, isDashboardActive]);
+
+  useEffect(() => {
+    setHighlightedIdx(0);
+  }, [deferredTerm]);
+
+  const visibleResults = searchResults.slice(0, 10);
+
+  return (
+    <div ref={containerRef} className="relative flex-1 max-w-[175px] sm:max-w-[250px] md:max-w-[290px] lg:max-w-[330px] min-w-[120px]">
+      <div className="relative flex items-center">
+        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 pointer-events-none shrink-0" />
+        <input
+          id="header-global-search-input"
+          type="text"
+          value={searchTerm}
+          onFocus={() => {
+            onFocusSearch();
+            if (!isDashboardActive && searchTerm.trim()) {
+              setIsOpen(true);
+            }
+          }}
+          onChange={(e) => {
+            const val = e.target.value;
+            setSearchTerm(val);
+            if (isDashboardActive) {
+              setIsOpen(false);
+              onDashboardSearchChange(val);
+            } else {
+              setIsOpen(val.trim().length > 0);
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              setIsOpen(false);
+            } else if (!isDashboardActive && e.key === 'ArrowDown' && visibleResults.length > 0) {
+              e.preventDefault();
+              setIsOpen(true);
+              setHighlightedIdx((prev) => (prev < visibleResults.length - 1 ? prev + 1 : 0));
+            } else if (!isDashboardActive && e.key === 'ArrowUp' && visibleResults.length > 0) {
+              e.preventDefault();
+              setHighlightedIdx((prev) => (prev > 0 ? prev - 1 : visibleResults.length - 1));
+            } else if (e.key === 'Enter') {
+              e.preventDefault();
+              if (!isDashboardActive) {
+                const selected = visibleResults[highlightedIdx];
+                if (selected && isOpen) {
+                  setIsOpen(false);
+                  onSelectBooking(selected);
+                } else if (searchTerm.trim()) {
+                  setIsOpen(false);
+                  onSubmitSearch(searchTerm);
+                }
+              }
+            }
+          }}
+          placeholder={language === 'TH' ? 'ค้นหา HN / ชื่อคนไข้...' : 'Search HN or patient...'}
+          aria-label={language === 'TH' ? 'ค้นหารายการจองด้วย HN หรือชื่อคนไข้' : 'Global search bookings by patient HN or name'}
+          className="w-full bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 pl-8 pr-7 py-1.5 rounded-full text-xs text-slate-800 placeholder:text-slate-400 transition-all outline-hidden font-sarabun tabular-nums"
+        />
+        {searchTerm && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearchTerm('');
+              setIsOpen(false);
+              onDashboardSearchChange('');
+            }}
+            className="absolute right-2 p-0.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/70 transition-colors cursor-pointer"
+            title={language === 'TH' ? 'ล้างคำค้นหา' : 'Clear search'}
+          >
+            <X className="w-3 h-3" />
+          </button>
+        )}
+      </div>
+
+      {!isDashboardActive && isOpen && searchTerm.trim().length > 0 && (
+        <div
+          id="header-global-search-dropdown"
+          className="fixed sm:absolute left-3 right-3 sm:left-auto sm:right-0 mt-2 sm:w-[400px] md:w-[440px] bg-white rounded-2xl border border-slate-200 shadow-2xl z-50 overflow-hidden"
+        >
+          <div className="px-3.5 py-2.5 bg-slate-50 border-b border-slate-200/70 flex items-center justify-between text-[11px]">
+            <span className="font-bold text-slate-700 flex items-center gap-1.5">
+              <Search className="w-3.5 h-3.5 text-blue-600" />
+              {language === 'TH' ? 'รายการจองที่ใช้งานอยู่' : 'Active Bookings'} ({searchResults.length})
+            </span>
+            <span className="text-[10px] text-slate-400 font-medium">
+              {language === 'TH' ? 'คลิกเพื่อเปิดดูในหน้าหลัก' : 'Click to inspect'}
+            </span>
+          </div>
+
+          <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 custom-mini-scroll">
+            {visibleResults.length === 0 ? (
+              <div className="py-7 px-4 text-center text-slate-400 text-xs">
+                <p className="font-semibold text-slate-500">
+                  {language === 'TH'
+                    ? `ไม่พบรายการจองที่ตรงกับ "${searchTerm.trim()}"`
+                    : `No active bookings matching "${searchTerm.trim()}"`}
+                </p>
+                <p className="text-[10.5px] mt-1">
+                  {language === 'TH' ? 'ลองค้นหาด้วยเลข HN หรือชื่อ-นามสกุลผู้ป่วย' : 'Try searching by patient HN or name'}
+                </p>
+              </div>
+            ) : (
+              visibleResults.map((b, idx) => {
+                const isHighlighted = idx === highlightedIdx;
+                const isHeld = b.holdStatus?.isHeld === true;
+                const isPharmacistVerified = b.pharmacistVerification?.status === 'Verified';
+                const isRejected = b.pharmacistVerification?.status === 'Rejected';
+                const medsPreview = b.medications
+                  .slice(0, 2)
+                  .map((m) => `${m.drugName} x${m.quantity}`)
+                  .join(', ');
+                const extraMedsCount = b.medications.length > 2 ? b.medications.length - 2 : 0;
+
+                return (
+                  <div
+                    key={b.id}
+                    onMouseEnter={() => setHighlightedIdx(idx)}
+                    onClick={() => {
+                      setIsOpen(false);
+                      onSelectBooking(b);
+                    }}
+                    className={`px-3.5 py-2.5 cursor-pointer transition-colors flex items-start justify-between gap-2.5 ${
+                      isHighlighted ? 'bg-blue-50/75' : 'hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs font-extrabold text-slate-900 truncate max-w-[175px]">
+                          {b.patientName}
+                        </span>
+                        <span className="text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200/70 px-1.5 py-0.2 rounded font-sarabun tabular-nums whitespace-nowrap">
+                          HN: {b.hn}
+                        </span>
+                        <span
+                          className={`text-[9.5px] font-bold uppercase px-1.5 py-0.2 rounded border ${
+                            b.mode === 'Oncology'
+                              ? 'bg-rose-50 text-rose-700 border-rose-200'
+                              : 'bg-sky-50 text-sky-700 border-sky-200'
+                          }`}
+                        >
+                          {b.mode}
+                        </span>
+                        {isHeld && (
+                          <span className="text-[9.5px] font-bold bg-amber-100 text-amber-800 border border-amber-200 px-1.5 py-0.2 rounded">
+                            HOLD
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-[11px] text-slate-600 truncate">
+                        {medsPreview || (language === 'TH' ? 'ไม่มีรายการยา' : 'No medications')}
+                        {extraMedsCount > 0 && (
+                          <span className="text-slate-400 font-semibold"> +{extraMedsCount}</span>
+                        )}
+                      </p>
+
+                      <div className="flex items-center gap-2 flex-wrap text-[10px] text-slate-500">
+                        <span className="inline-flex items-center gap-1 font-semibold text-slate-600 tabular-nums">
+                          <Calendar className="w-3 h-3 text-slate-400" />
+                          {formatDateToDMY(b.dateOfUse)}
+                        </span>
+                        {b.pharmacyLocation && (
+                          <span className="px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded font-semibold">
+                            {b.pharmacyLocation}
+                          </span>
+                        )}
+                        <span
+                          className={`px-1.5 py-0.2 rounded font-bold ${
+                            isRejected
+                              ? 'bg-rose-50 text-rose-700'
+                              : isPharmacistVerified
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : 'bg-amber-50 text-amber-700'
+                          }`}
+                        >
+                          {isRejected ? 'Rejected' : isPharmacistVerified ? 'Verified' : 'Pending'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsOpen(false);
+                          onPrintBooking(b);
+                        }}
+                        className="p-1.5 text-slate-500 hover:text-blue-700 hover:bg-blue-100/70 rounded-lg border border-transparent hover:border-blue-200 transition-colors cursor-pointer"
+                        title={language === 'TH' ? 'พิมพ์ใบรายการยา' : 'Print Slip'}
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                      </button>
+                      {canQuickEdit && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsOpen(false);
+                            onEditBooking(b.id);
+                          }}
+                          className="p-1.5 text-slate-500 hover:text-indigo-700 hover:bg-indigo-100/70 rounded-lg border border-transparent hover:border-indigo-200 transition-colors cursor-pointer"
+                          title={language === 'TH' ? 'แก้ไขใบจอง' : 'Edit Booking'}
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {searchResults.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                onSubmitSearch(searchTerm);
+              }}
+              className="w-full px-3.5 py-2 bg-slate-50 hover:bg-blue-50 border-t border-slate-200/70 text-[11px] font-bold text-blue-700 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <span>
+                {language === 'TH'
+                  ? `แสดงทั้งหมด ${searchResults.length} รายการในหน้าหลัก`
+                  : `Show all ${searchResults.length} matching records in Dashboard`}
+              </span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+});
 
 function MainAppShell() {
   const { currentUser } = useApp();

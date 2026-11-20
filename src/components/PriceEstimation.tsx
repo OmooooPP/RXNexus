@@ -438,31 +438,31 @@ export default function PriceEstimation() {
 
           {/* Document Title */}
           <div className="text-center my-4">
-            <h1 className="text-md font-black text-slate-900 tracking-tight uppercase leading-none">
+            <h1 className="text-lg font-black text-slate-900 tracking-tight uppercase leading-none">
               {language === 'TH' ? 'ใบประมาณการราคายาเคมีบำบัดและเวชภัณฑ์' : 'ONCOLOGY MEDICATION PRICE ESTIMATION REPORT'}
             </h1>
-            <p className="text-[9.5px] text-slate-400 uppercase tracking-widest font-semibold font-mono mt-1 leading-none">
+            <p className="text-[11px] text-slate-500 uppercase tracking-widest font-semibold font-mono mt-1.5 leading-none">
               {language === 'TH' ? 'เอกสารประมาณการค่ายาเพื่อประกอบการตัดสินใจรักษาพยาบาล' : 'OFFICIAL CLINICAL MEDICATION COST VALUATION'}
             </p>
           </div>
 
           {/* Patient Details Subgrid */}
-          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 grid grid-cols-2 gap-y-2 gap-x-4 text-[11px]">
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 grid grid-cols-2 gap-y-2.5 gap-x-4 text-xs">
             <div>
-              <span className="text-slate-500 font-bold uppercase block">{language === 'TH' ? 'ชื่อคนไข้ (Patient Name)' : 'Patient Name'}:</span>
-              <span className="font-bold text-slate-800 text-xs">{patientName || '-'}</span>
+              <span className="text-slate-500 font-bold uppercase text-[10.5px] block">{language === 'TH' ? 'ชื่อคนไข้ (Patient Name)' : 'Patient Name'}:</span>
+              <span className="font-bold text-slate-900 text-sm">{patientName || '-'}</span>
             </div>
             <div>
-              <span className="text-slate-500 font-bold uppercase block">{language === 'TH' ? 'หมายเลขคนไข้ (HN)' : 'HN Number'}:</span>
-              <span className="font-bold font-mono text-slate-800 text-xs">{hn || '-'}</span>
+              <span className="text-slate-500 font-bold uppercase text-[10.5px] block">{language === 'TH' ? 'หมายเลขคนไข้ (HN)' : 'HN Number'}:</span>
+              <span className="font-bold font-mono text-slate-900 text-sm">{hn || '-'}</span>
             </div>
             <div className="pt-1">
-              <span className="text-slate-500 font-bold uppercase block">{language === 'TH' ? 'สูตรเคมีบำบัด (Regimen)' : 'Regimen Code'}:</span>
-              <span className="font-bold text-slate-800">{regimen || '-'}</span>
+              <span className="text-slate-500 font-bold uppercase text-[10.5px] block">{language === 'TH' ? 'สูตรเคมีบำบัด (Regimen)' : 'Regimen Code'}:</span>
+              <span className="font-bold text-slate-800 text-[13px]">{regimen || '-'}</span>
             </div>
             <div className="pt-1">
-              <span className="text-slate-500 font-bold uppercase block">{language === 'TH' ? 'สิทธิ์การรักษา' : 'Privilege Rate'}:</span>
-              <span className="font-bold text-indigo-700 uppercase">
+              <span className="text-slate-500 font-bold uppercase text-[10.5px] block">{language === 'TH' ? 'สิทธิ์การรักษา' : 'Privilege Rate'}:</span>
+              <span className="font-bold text-indigo-700 uppercase text-[13px]">
                 {patientType === 'employee' && (language === 'TH' ? 'สิทธิ์พนักงาน (BHP Employee)' : 'BHP Employee')}
                 {patientType === 'opd' && (language === 'TH' ? 'สิทธิ์ผู้ป่วยนอก (OPD)' : 'Outpatient (OPD)')}
                 {patientType === 'ipd' && (language === 'TH' ? 'สิทธิ์ผู้ป่วยใน (IPD)' : 'Inpatient (IPD)')}
@@ -473,14 +473,14 @@ export default function PriceEstimation() {
 
           {/* Core Estimates Table */}
           <div className="border border-slate-300 rounded-md overflow-hidden">
-            <table className="w-full text-left text-[11px] border-collapse">
+            <table className="w-full text-left text-[13px] border-collapse">
               <thead>
-                <tr className="bg-slate-100 border-b border-slate-300 font-bold text-slate-700">
-                  <th className="p-2 font-mono text-[9px] uppercase tracking-wider" style={{ width: '15%' }}>Stock Code</th>
-                  <th className="p-2" style={{ width: '45%' }}>{language === 'TH' ? 'รายการเวชภัณฑ์ยา Oncology' : 'Oncology Med Item'}</th>
-                  <th className="p-2 text-right" style={{ width: '15%' }}>{language === 'TH' ? 'ราคาต่อหน่วย' : 'Unit Price'}</th>
-                  <th className="p-2 text-center" style={{ width: '10%' }}>{language === 'TH' ? 'จำนวน' : 'Qty'}</th>
-                  <th className="p-2 text-right" style={{ width: '15%' }}>{language === 'TH' ? 'ราคารวม' : 'Subtotal'}</th>
+                <tr className="bg-slate-100 border-b border-slate-300 font-bold text-slate-700 text-[11px] uppercase">
+                  <th className="p-2.5 font-mono tracking-wider" style={{ width: '16%' }}>Stock Code</th>
+                  <th className="p-2.5" style={{ width: '44%' }}>{language === 'TH' ? 'รายการเวชภัณฑ์ยา Oncology' : 'Oncology Med Item'}</th>
+                  <th className="p-2.5 text-right" style={{ width: '15%' }}>{language === 'TH' ? 'ราคาต่อหน่วย' : 'Unit Price'}</th>
+                  <th className="p-2.5 text-center" style={{ width: '10%' }}>{language === 'TH' ? 'จำนวน' : 'Qty'}</th>
+                  <th className="p-2.5 text-right" style={{ width: '15%' }}>{language === 'TH' ? 'ราคารวม' : 'Subtotal'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -491,13 +491,13 @@ export default function PriceEstimation() {
                                     med.prices.opd;
                   return (
                     <tr key={med.drugId}>
-                      <td className="p-2 font-mono text-[9px] text-slate-500">{med.stockCode}</td>
-                      <td className="p-2 font-bold text-slate-800">{med.drugName}</td>
-                      <td className="p-2 text-right font-semibold text-slate-700">
+                      <td className="p-2.5 font-mono text-xs text-slate-600">{med.stockCode}</td>
+                      <td className="p-2.5 font-bold text-slate-900">{med.drugName}</td>
+                      <td className="p-2.5 text-right font-semibold text-slate-700">
                         ฿{unitPrice.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
                       </td>
-                      <td className="p-2 text-center font-bold text-slate-800">{med.quantity}</td>
-                      <td className="p-2 text-right font-bold text-slate-900">
+                      <td className="p-2.5 text-center font-bold text-slate-900 text-sm">{med.quantity}</td>
+                      <td className="p-2.5 text-right font-bold text-slate-900">
                         ฿{(unitPrice * med.quantity).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
                       </td>
                     </tr>
@@ -506,7 +506,7 @@ export default function PriceEstimation() {
                 {/* Empty rows to make the table look official and structured */}
                 {selectedMeds.length < 5 &&
                   Array.from({ length: 5 - selectedMeds.length }).map((_, idx) => (
-                    <tr key={`empty-${idx}`} className="h-6">
+                    <tr key={`empty-${idx}`} className="h-7">
                       <td className="p-2 font-mono"></td>
                       <td className="p-2"></td>
                       <td className="p-2 text-right"></td>
@@ -517,10 +517,10 @@ export default function PriceEstimation() {
               </tbody>
               <tfoot>
                 <tr className="bg-slate-100 border-t border-slate-300 font-black text-slate-900">
-                  <td colSpan={4} className="p-2.5 text-right uppercase tracking-wider text-[10px]">
+                  <td colSpan={4} className="p-2.5 text-right uppercase tracking-wider text-xs">
                     {language === 'TH' ? 'ประมาณการราคารวมสุทธิทั้งสิ้น (Grand Total Estimated Cost):' : 'Grand Total Estimated Cost:'}
                   </td>
-                  <td className="p-2.5 text-right font-extrabold text-purple-900">
+                  <td className="p-2.5 text-right font-extrabold text-purple-900 text-base">
                     ฿{((patientType === 'employee' ? totals.employee :
                         patientType === 'ipd' ? totals.ipd :
                         patientType === 'it' ? totals.it :
@@ -533,7 +533,7 @@ export default function PriceEstimation() {
 
           {/* Disclaimers & Signatures */}
           <div className="space-y-4 pt-4">
-            <div className="border border-amber-200 bg-amber-50/50 p-3 rounded-lg text-slate-600 text-[10px] space-y-1">
+            <div className="border border-amber-200 bg-amber-50/50 p-3 rounded-lg text-slate-700 text-xs space-y-1">
               <p className="font-extrabold text-amber-800 flex items-center gap-1">
                 ⚠️ {language === 'TH' ? 'ข้อตกลงและคำชี้แจงในการประมาณการค่ายา' : 'Terms & Disclaimers of Estimates'}
               </p>

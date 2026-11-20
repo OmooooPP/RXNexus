@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useDeferredValue } from 'react';
 import { useApp } from '../context/AppContext';
 import { i18n } from '../lib/i18n';
 import { Booking, formatDateToDMY } from '../types';
 import {
-  Search,
   Eye,
   CheckCircle,
   Clock,
@@ -31,10 +30,17 @@ interface DataTableProps {
   onEditClick?: (id: string) => void;
   onPrintClick?: (booking: Booking) => void;
   initialSearchQuery?: string;
-  onClearInitialSearch?: () => void;
+  searchResetTabNonce?: number;
+  onSyncSearchQuery?: (query: string) => void;
 }
 
-export default function DataTable({ onEditClick, onPrintClick, initialSearchQuery, onClearInitialSearch }: DataTableProps) {
+export default function DataTable({
+  onEditClick,
+  onPrintClick,
+  initialSearchQuery = '',
+  searchResetTabNonce = 0,
+  onSyncSearchQuery
+}: DataTableProps) {
   const {
     currentUser,
     bookings,
@@ -57,7 +63,7 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
 
   // Selected classification tab: All vs General vs Oncology vs Hold vs Rejected vs CancelRequested
   const [activeTab, setActiveTab] = useState<'All' | 'General' | 'Oncology' | 'Hold' | 'Rejected' | 'CancelRequested'>('All');
-  const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(initialSearchQuery.trim());
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedImageZoom, setSelectedImageZoom] = useState<number>(1);
   const [verifyImageZoom, setVerifyImageZoom] = useState<number>(1);
@@ -97,18 +103,10 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
   const verifyImgZoomRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (initialSearchQuery) {
-      setSearchQuery(initialSearchQuery);
-      const foundMatch = bookings.find((b) => {
-        const hMatch = b.hn.replace(/-/g, '').includes(initialSearchQuery.replace(/-/g, '')) || b.hn.includes(initialSearchQuery);
-        const nameMatch = b.patientName.toLowerCase().includes(initialSearchQuery.toLowerCase());
-        return hMatch || nameMatch;
-      });
-      if (foundMatch) {
-        setActiveTab(foundMatch.mode as 'General' | 'Oncology');
-      }
+    if (searchResetTabNonce > 0) {
+      setActiveTab('All');
     }
-  }, [initialSearchQuery, bookings]);
+  }, [searchResetTabNonce]);
 
   // Counts
   const rejectedCount = bookings.filter((b) => b.pharmacistVerification?.status === 'Rejected').length;
@@ -170,12 +168,17 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
       belongsToTab = b.cancelStatus?.isRequested === true && !b.cancelStatus?.approved;
     }
 
+    const trimmedSearch = deferredSearchQuery;
     const matchesSearch =
-      b.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.hn.replace(/-/g, '').includes(searchQuery.replace(/-/g, '')) ||
-      b.hn.includes(searchQuery);
+      !trimmedSearch ||
+      b.patientName.toLowerCase().includes(trimmedSearch.toLowerCase()) ||
+      b.hn.replace(/-/g, '').includes(trimmedSearch.replace(/-/g, '')) ||
+      b.hn.toLowerCase().includes(trimmedSearch.toLowerCase());
 
     if (!belongsToTab || !matchesSearch) return false;
+
+    // When searching explicitly by HN or patient name, surface matching records across all dates
+    if (trimmedSearch.length > 0) return true;
 
     // Check if within 5 days of use limit
     if (!b.dateOfUse) return true;
@@ -207,25 +210,26 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
   const heldBookings = bookings.filter((b) => {
     const isHeld = b.holdStatus?.isHeld === true;
     const matchesSearch =
-      b.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.hn.replace(/-/g, '').includes(searchQuery.replace(/-/g, '')) ||
-      b.hn.includes(searchQuery);
+      !deferredSearchQuery ||
+      b.patientName.toLowerCase().includes(deferredSearchQuery.toLowerCase()) ||
+      b.hn.replace(/-/g, '').includes(deferredSearchQuery.replace(/-/g, '')) ||
+      b.hn.toLowerCase().includes(deferredSearchQuery.toLowerCase());
     return isHeld && matchesSearch;
   });
 
   return (
     <div className="space-y-6">
-      {/* Search and Tabs line */}
-      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Full-width Category Tabs Bar (no horizontal scroll) */}
+      <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200 shadow-sm">
         {/* Toggle tabs */}
-        <div className="flex bg-slate-50 p-1 rounded-lg border border-slate-200 max-w-2xl w-full md:w-auto overflow-x-auto gap-0.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:flex lg:flex-row lg:items-center bg-slate-50 p-1.5 rounded-xl border border-slate-200 w-full gap-1.5">
           <button
             id="tab-all-btn"
             onClick={() => setActiveTab('All')}
-            className={`px-3 py-1.5 font-semibold text-xs rounded transition-all whitespace-nowrap ${
+            className={`lg:flex-1 px-3 py-2 font-semibold text-xs rounded-lg transition-all whitespace-nowrap flex items-center justify-center cursor-pointer ${
               activeTab === 'All'
                 ? 'bg-slate-800 text-white shadow-xs'
-                : 'text-slate-500 hover:text-slate-800'
+                : 'text-slate-600 hover:bg-white hover:text-slate-900'
             }`}
           >
             {t.tabAll}
@@ -233,10 +237,10 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
           <button
             id="tab-general-btn"
             onClick={() => setActiveTab('General')}
-            className={`px-3 py-1.5 font-semibold text-xs rounded transition-all whitespace-nowrap ${
+            className={`lg:flex-1 px-3 py-2 font-semibold text-xs rounded-lg transition-all whitespace-nowrap flex items-center justify-center cursor-pointer ${
               activeTab === 'General'
                 ? 'bg-blue-600 text-white shadow-xs'
-                : 'text-slate-500 hover:text-slate-800'
+                : 'text-slate-600 hover:bg-white hover:text-slate-900'
             }`}
           >
             {t.tabGeneral}
@@ -244,10 +248,10 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
           <button
             id="tab-oncology-btn"
             onClick={() => setActiveTab('Oncology')}
-            className={`px-3 py-1.5 font-semibold text-xs rounded transition-all whitespace-nowrap ${
+            className={`lg:flex-1 px-3 py-2 font-semibold text-xs rounded-lg transition-all whitespace-nowrap flex items-center justify-center cursor-pointer ${
               activeTab === 'Oncology'
                 ? 'bg-red-600 text-white shadow-xs'
-                : 'text-slate-500 hover:text-slate-800'
+                : 'text-slate-600 hover:bg-white hover:text-slate-900'
             }`}
           >
             {t.tabOncology}
@@ -255,10 +259,10 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
           <button
             id="tab-hold-btn"
             onClick={() => setActiveTab('Hold')}
-            className={`px-3 py-1.5 font-semibold text-xs rounded transition-all whitespace-nowrap ${
+            className={`lg:flex-1 px-3 py-2 font-semibold text-xs rounded-lg transition-all whitespace-nowrap flex items-center justify-center cursor-pointer ${
               activeTab === 'Hold'
                 ? 'bg-amber-600 text-white shadow-xs'
-                : 'text-slate-500 hover:text-slate-800'
+                : 'text-slate-600 hover:bg-white hover:text-slate-900'
             }`}
           >
             {language === 'TH' ? 'รายการยา HOLD' : 'Held Medications'}
@@ -266,13 +270,13 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
           <button
             id="tab-rejected-btn"
             onClick={() => setActiveTab('Rejected')}
-            className={`px-3 py-1.5 font-semibold text-xs rounded transition-all whitespace-nowrap flex items-center gap-1 ${
+            className={`lg:flex-1 px-3 py-2 font-semibold text-xs rounded-lg transition-all whitespace-nowrap flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === 'Rejected'
                 ? 'bg-rose-600 text-white shadow-xs'
                 : 'text-rose-600 hover:bg-rose-50'
             }`}
           >
-            <XCircle className="w-3.5 h-3.5" />
+            <XCircle className="w-3.5 h-3.5 shrink-0" />
             <span>{language === 'TH' ? 'Verify ไม่ผ่าน' : 'Not Approved'}</span>
             {rejectedCount > 0 && (
               <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
@@ -285,13 +289,13 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
           <button
             id="tab-cancel-req-btn"
             onClick={() => setActiveTab('CancelRequested')}
-            className={`px-3 py-1.5 font-semibold text-xs rounded transition-all whitespace-nowrap flex items-center gap-1 ${
+            className={`lg:flex-1 px-3 py-2 font-semibold text-xs rounded-lg transition-all whitespace-nowrap flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === 'CancelRequested'
                 ? 'bg-amber-700 text-white shadow-xs'
                 : 'text-amber-700 hover:bg-amber-50'
             }`}
           >
-            <Ban className="w-3.5 h-3.5" />
+            <Ban className="w-3.5 h-3.5 shrink-0" />
             <span>{language === 'TH' ? 'คำขอยกเลิก' : 'Cancel Req'}</span>
             {cancelReqCount > 0 && (
               <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
@@ -301,25 +305,6 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
               </span>
             )}
           </button>
-        </div>
-
-        {/* Live Search */}
-        <div className="relative max-w-sm w-full">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            id="table-search-input"
-            type="text"
-            value={searchQuery}
-            onChange={(e) => {
-              const val = e.target.value;
-              setSearchQuery(val);
-              if (!val && onClearInitialSearch) {
-                onClearInitialSearch();
-              }
-            }}
-            placeholder={t.searchPlaceholder}
-            className="w-full bg-slate-50 border border-slate-200 pl-10 pr-4 py-2 rounded-full text-xs focus:outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all font-sans"
-          />
         </div>
       </div>
 
@@ -461,7 +446,7 @@ export default function DataTable({ onEditClick, onPrintClick, initialSearchQuer
                                   setVerifyingLocation(b.pharmacyLocation || '');
                                   setVerifyingPharmacistName(b.staff?.pharmacist || currentUser?.name || '');
                                 } else {
-                                  setSearchQuery(b.hn);
+                                  onSyncSearchQuery?.(b.hn);
                                   navigator.clipboard.writeText(b.hn);
                                   spawnAlert(language === 'TH' ? `คัดลอก HN: ${b.hn} และกรองข้อมูลเรียบร้อยแล้ว` : `Copied HN: ${b.hn} and filtered table!`, 'success');
                                 }

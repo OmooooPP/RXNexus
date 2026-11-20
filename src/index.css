@@ -1,15 +1,24 @@
-@import url('https://fonts.googleapis.com/css2?family=Prompt:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,300;1,400;1,500;1,600;1,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,300;1,400;1,500;1,600;1,700&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Sarabun", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-sans: "Sarabun", sans-serif;
   --font-sarabun: "Sarabun", sans-serif;
-  --font-prompt: "Prompt", sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-prompt: "Sarabun", sans-serif;
+  --font-mono: "Sarabun", sans-serif;
+  --font-serif: "Sarabun", sans-serif;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 html, body {
-  font-family: "Sarabun", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: "Sarabun", sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -17,9 +26,24 @@ html, body {
   background-color: #f8fafc;
 }
 
-/* Ensure code and monospace badges remain true monospace */
-code, kbd, samp, pre, .font-mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+/* Keep all text, numbers, inputs, date fields, and numeric badges in the exact same Sarabun font across devices and ratios */
+body, input, select, textarea, button,
+code, kbd, samp, pre, .font-mono, .font-serif, .font-sans, .font-sarabun {
+  font-family: "Sarabun", sans-serif !important;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+input[type="date"],
+input[type="date"]::-webkit-datetime-edit,
+input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+input[type="date"]::-webkit-datetime-edit-text,
+input[type="date"]::-webkit-datetime-edit-month-field,
+input[type="date"]::-webkit-datetime-edit-day-field,
+input[type="date"]::-webkit-datetime-edit-year-field {
+  font-family: "Sarabun", sans-serif !important;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
 }
 
 /* Custom CSS Scrollbars */
@@ -38,8 +62,8 @@ code, kbd, samp, pre, .font-mono {
 /* Print CSS Configurations for flawless PDF and Slip Voucher generation */
 @media print {
   @page {
-    size: A4;
-    margin: 0 !important;
+    size: A4 portrait;
+    margin: 7mm 8mm !important;
   }
 
   /* Set all unnecessary UI elements, navigation bars, sidebars, and backgrounds to display: none */
@@ -55,45 +79,120 @@ code, kbd, samp, pre, .font-mono {
     display: none !important;
   }
 
-  /* Reset layout of all parent containers so they do not restrict height or overflow during print */
-  html, body, #root, #root *, div, main, section {
+  /* Reset outer app shell layout containers without stripping background colors inside #printable-area */
+  html, body, #root, .print-overlay-wrapper, main, section {
     height: auto !important;
     min-height: 0 !important;
     overflow: visible !important;
     position: static !important;
-    background-color: transparent !important;
+  }
+
+  html, body, #root, .print-overlay-wrapper {
+    background-color: #ffffff !important;
     background-image: none !important;
+  }
+
+  .print-overlay-wrapper {
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
   
   /* Ensure the main Requisition Supply Bill container is visible, takes up 100% width, 
-     and is positioned perfectly at the top-left of the page so it prints cleanly like a standard document */
+     and is positioned cleanly so repeating headers and card backgrounds render accurately */
   #printable-area {
     display: block !important;
     visibility: visible !important;
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
+    position: static !important;
     width: 100% !important;
     max-width: 100% !important;
+    min-height: 0 !important;
     margin: 0 !important;
-    padding: 1.2cm !important;
+    padding: 0 !important;
     border: none !important;
     box-shadow: none !important;
-    background: #ffffff !important;
-    color: #000000 !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    overflow: visible !important;
+  }
+
+  #printable-area * {
+    overflow: visible !important;
   }
 
   body {
     background-color: #ffffff !important;
     background-image: none !important;
-    color: #000000 !important;
-    font-size: 11pt !important;
+    color: #0f172a !important;
   }
 
-  /* Force print background shadows and colors */
+  /* Force print background shadows and colors across all report badges, headers, and cards */
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+
+  .print-layout-shell {
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+  }
+
+  .print-layout-shell > thead {
+    display: table-header-group !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  .print-layout-shell > tfoot {
+    display: table-footer-group !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .print-layout-shell > thead > tr,
+  .print-layout-shell > thead > tr > td,
+  .print-layout-shell > tfoot > tr,
+  .print-layout-shell > tfoot > tr > td {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .print-layout-shell > thead > tr {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  .print-layout-shell > tbody,
+  .print-layout-shell > tbody > tr,
+  .print-layout-shell > tbody > tr > td {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+
+  table:not(.print-layout-shell) > thead {
+    display: table-header-group !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  table:not(.print-layout-shell) > thead > tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  table:not(.print-layout-shell) > tbody > tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: auto !important;
+    break-after: auto !important;
   }
 
   .bg-neutral-50, .bg-indigo-50\/20, .bg-emerald-50\/5 {
